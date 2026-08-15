@@ -10,13 +10,26 @@ import type { BulletsSlide } from "@/lib/slides/schema";
  * one slide; we follow that exactly rather than re-deriving a structure.
  */
 export const CHANGE_MANAGEMENT_SLIDE: Omit<BulletsSlide, "id" | "kind"> = {
-  title: "Change Management & Governance",
-  subtitle: "How adoption is protected after go-live",
-  bullets: [
-    { text: "Agile delivery in four stages — Prepare, Explore, Realize, Deploy — with a joint client/vendor steering cadence throughout." },
-    { text: "Named governance: client Project Manager + vendor Product Manager as joint decision-makers, backed by engineering, QA, and change-management leads." },
-    { text: "Key-user training and on-duty training run before go-live, with sign-off required before cutover." },
-    { text: "One month of hyper-care after go-live: full-capacity bug fixes, UI adjustments, and on-site support before shifting to standard SLA tiers." },
+  sectionLabel: "EXECUTION METHODOLOGY: GO-LIVE",
+  assertion:
+    "GOVERNANCE, TRAINING AND ONE MONTH OF HYPER-CARE PROTECT ADOPTION BEFORE STANDARD SLA SUPPORT BEGINS",
+  rows: [
+    {
+      label: "Delivery cadence",
+      text: "Agile delivery in four stages — Prepare, Explore, Realize, Deploy — with a joint client/vendor steering call throughout.",
+    },
+    {
+      label: "Named governance",
+      text: "Client Project Manager and vendor Product Manager act as joint decision-makers, backed by engineering, QA, and change-management leads.",
+    },
+    {
+      label: "Training",
+      text: "Key-user and on-duty training run before go-live, with written sign-off required ahead of cutover.",
+    },
+    {
+      label: "Hyper-care",
+      text: "One month at full capacity after go-live: bug fixes, UI adjustments, and on-site support before standard SLA tiers begin.",
+    },
   ],
 };
 

@@ -1,225 +1,458 @@
 import pptxgen from "pptxgenjs";
-import type { Slide } from "@/lib/slides/schema";
-import { PPTX_THEME as T, LIGHT_MASTER, DARK_MASTER } from "./theme";
-import { defineMasters } from "./masters";
-import { addHeader, hr, dot } from "./helpers";
+import type { Slide, DeckTheme } from "@/lib/slides/schema";
+import {
+  PAGE, TYPE, GAP, STROKE, LIGHT_MASTER, DARK_MASTER, COVER_MASTER,
+  resolveTheme, textColorFor, type ResolvedTheme,
+} from "./theme";
+import { defineMasters, loadLogoData } from "./masters";
+import {
+  titleBlock, banner, rowLabelStack, chevronRibbon, bandedTable,
+  accentFor, tintFor, type Ctx, type StackRow,
+} from "./helpers";
 
-function addTitleSlide(pptx: pptxgen, s: Extract<Slide, { kind: "title" }>) {
-  // No master — covers carry no page number/footer in the reference decks.
-  const slide = pptx.addSlide();
-  slide.background = { color: T.ink };
-  slide.addText("BALERION", { x: 0.6, y: 0.4, w: 3, h: 0.4, fontSize: 16, bold: true, color: T.red, fontFace: T.font });
-  slide.addText(s.eyebrow.toUpperCase(), { x: 0.65, y: 2.5, w: 10, h: 0.4, fontSize: 12, color: T.gold, fontFace: T.font, charSpacing: 2 });
-  slide.addText(s.title, { x: 0.65, y: 2.95, w: 11.8, h: 1.5, fontSize: 40, bold: true, color: T.white, fontFace: T.font });
-  slide.addText(s.subtitle, { x: 0.65, y: 4.35, w: 10.5, h: 0.5, fontSize: 16, color: "CCCCCC", fontFace: T.font });
-  hr(slide, pptx, { x: 0.65, y: 5.0, w: 1.2, h: 0.05, color: T.red });
-  slide.addText(s.footer, { x: 0.65, y: 6.85, w: 8, h: 0.35, fontSize: 10, color: T.faint, fontFace: T.font });
+/** Usable content width between the side margins. */
+const BAND_W = PAGE.w - PAGE.marginX * 2;
+
+type Of<K extends Slide["kind"]> = Extract<Slide, { kind: K }>;
+
+function coverLogo(t: ResolvedTheme): string | null {
+  return t.logoFile ? loadLogoData(t.logoFile) : null;
 }
 
-function addSummarySlide(pptx: pptxgen, s: Extract<Slide, { kind: "summary" }>) {
-  const slide = pptx.addSlide({ masterName: LIGHT_MASTER });
-  addHeader(slide, pptx, s.title, s.subtitle);
-  let y = 1.85;
-  const rowH = 1.15;
-  for (const r of s.rows) {
-    slide.addShape(pptx.ShapeType.rect, {
-      x: 0.6, y, w: 2.1, h: rowH - 0.2, fill: { color: T.red }, line: { color: T.red },
-      shadow: { type: "outer", color: "000000", opacity: 0.18, blur: 6, offset: 2, angle: 90 },
+/**
+ * COVER-01 (spec §4.1). White ground, logo block left, title stack
+ * right-aligned with a short accent rule directly beneath, date below that.
+ * No page number or header logo — covers carry neither in the source decks.
+ */
+function addTitleSlide(ctx: Ctx, s: Of<"title">) {
+  const { slide, pptx, t } = ctx;
+  slide.background = { color: t.white };
+
+  slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0.25, w: PAGE.w, h: 0.02, fill: { color: t.accent }, line: { color: t.accent } });
+
+  const logo = coverLogo(t);
+  if (logo) slide.addImage({ data: logo, x: 1.1, y: 3.0, w: 3.4, h: 3.4 / (603 / 105) });
+
+  slide.addText(s.title.toUpperCase(), {
+    x: 6.9, y: 3.05, w: 5.9, h: 0.5,
+    fontSize: TYPE.coverTitle.size, bold: true, color: t.accent,
+    align: "right", valign: "bottom", fontFace: t.font,
+  });
+  slide.addShape(pptx.ShapeType.rect, { x: 9.6, y: 3.6, w: 3.2, h: 0.015, fill: { color: t.accent }, line: { color: t.accent } });
+  if (s.subtitle) {
+    slide.addText(s.subtitle, {
+      x: 6.9, y: 3.72, w: 5.9, h: 0.3,
+      fontSize: TYPE.bulletBody.size + 1, color: t.gray700, align: "right", fontFace: t.font,
     });
-    slide.addText(r.label.toUpperCase(), {
-      x: 0.6, y, w: 2.1, h: rowH - 0.2, fontSize: 11, bold: true, color: T.white, align: "center", valign: "middle", fontFace: T.font,
+  }
+  slide.addText(s.date.toUpperCase(), {
+    x: 6.9, y: 4.02, w: 5.9, h: 0.35,
+    fontSize: TYPE.coverDate.size, bold: true, color: t.black, align: "right", fontFace: t.font,
+  });
+}
+
+/** DIV-01 (spec §4.2) — cover treatment reused as a chapter break, plus an
+ * optional bottom-left scope note. */
+function addDividerSlide(ctx: Ctx, s: Of<"divider">) {
+  const { slide, pptx, t } = ctx;
+  slide.background = { color: t.white };
+  slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0.25, w: PAGE.w, h: 0.02, fill: { color: t.accent }, line: { color: t.accent } });
+
+  const logo = coverLogo(t);
+  if (logo) slide.addImage({ data: logo, x: 8.9, y: 3.1, w: 3.4, h: 3.4 / (603 / 105) });
+
+  slide.addText(s.sectionName.toUpperCase(), {
+    x: 0.55, y: 3.05, w: 7.9, h: 0.5,
+    fontSize: TYPE.coverTitle.size, bold: true, color: t.accent, valign: "bottom", fontFace: t.font,
+  });
+  slide.addShape(pptx.ShapeType.rect, { x: 0.55, y: 3.6, w: 3.2, h: 0.015, fill: { color: t.accent }, line: { color: t.accent } });
+  if (s.deckSubtitle) {
+    slide.addText(s.deckSubtitle, {
+      x: 0.55, y: 3.72, w: 7.9, h: 0.35,
+      fontSize: TYPE.coverDate.size, bold: true, color: t.black, fontFace: t.font,
     });
-    slide.addText(r.text, { x: 2.9, y, w: 9.7, h: rowH - 0.2, fontSize: 12, color: T.ink, valign: "middle", fontFace: T.font });
-    y += rowH;
+  }
+  if (s.scopeNote) {
+    slide.addText(s.scopeNote, {
+      x: 0.55, y: 5.6, w: 6.5, h: 0.8,
+      fontSize: TYPE.bulletBody.size, color: t.black, valign: "top", fontFace: t.font,
+    });
   }
 }
 
-function addBulletsSlide(pptx: pptxgen, s: Extract<Slide, { kind: "bullets" }>) {
-  const slide = pptx.addSlide({ masterName: LIGHT_MASTER });
-  addHeader(slide, pptx, s.title, s.subtitle);
-  let y = 1.95;
-  for (const b of s.bullets) {
-    dot(slide, pptx, { x: 0.65, y: y + 0.1, d: 0.09, color: T.red });
-    slide.addText(b.text, { x: 0.92, y, w: 11.4, h: 0.55, fontSize: 14, color: T.ink, valign: "top", fontFace: T.font });
-    y += 0.68;
+/** EXEC-01 (spec §4.3) — the whole proposal on one slide. */
+function addSummarySlide(ctx: Ctx, s: Of<"summary">) {
+  titleBlock(ctx, { sectionLabel: s.sectionLabel, assertion: s.assertion, page: s.page, accent: accentFor(ctx.t, s.domain) });
+  const rows: StackRow[] = s.rows.map((r) => ({
+    label: r.label,
+    lines: r.bullets,
+    boxes: r.options,
+  }));
+  rowLabelStack(ctx, {
+    rows,
+    yStart: PAGE.bandTop + 0.1,
+    yEnd: PAGE.bandBottom,
+    labelW: 1.95,
+    labelFill: accentFor(ctx.t, s.domain),
+  });
+}
+
+/** UND-05 (spec §4.9) — discovery evidence. Rows with a `label` render as
+ * the spec's two-column pain-point row; rows without render full-width. */
+function addBulletsSlide(ctx: Ctx, s: Of<"bullets">) {
+  const { t } = ctx;
+  const accent = accentFor(t, s.domain);
+  titleBlock(ctx, { sectionLabel: s.sectionLabel, assertion: s.assertion, page: s.page, accent });
+
+  let yStart = PAGE.bandTop + 0.1;
+  if (s.intro) {
+    ctx.slide.addText(s.intro, {
+      x: PAGE.marginX, y: yStart, w: BAND_W, h: 0.42,
+      fontSize: TYPE.bulletBody.size + 1, color: t.black, valign: "top", fontFace: t.font,
+    });
+    yStart += 0.52;
+  }
+
+  const conclusionH = s.conclusion ? 0.5 : 0;
+  const yEnd = PAGE.bandBottom - (conclusionH ? conclusionH + GAP.normal : 0);
+  const hasLabels = s.rows.some((r) => r.label);
+
+  rowLabelStack(ctx, {
+    rows: s.rows.map((r) => ({ label: r.label, lines: [r.text] })),
+    yStart,
+    yEnd,
+    labelW: 2.0,
+    labelFill: hasLabels ? tintFor(t, s.domain) : accent,
+    labelSize: TYPE.boxHeading.size,
+    contentFill: t.gray100,
+    contentSize: TYPE.boxHeading.size,
+    gap: GAP.tight,
+  });
+
+  if (s.conclusion) {
+    banner(ctx, { y: PAGE.bandBottom - conclusionH, h: conclusionH, text: s.conclusion, fill: t.black });
   }
 }
 
-function addComparisonSlide(pptx: pptxgen, s: Extract<Slide, { kind: "comparison" }>) {
-  const slide = pptx.addSlide({ masterName: LIGHT_MASTER });
-  addHeader(slide, pptx, s.title, s.subtitle);
-  const colW = 3.75;
-  const gap = 0.25;
-  const startX = 0.6;
-  s.cols.forEach((c, i) => {
-    const x = startX + i * (colW + gap);
-    slide.addShape(pptx.ShapeType.rect, {
-      x, y: 1.8, w: colW, h: 4.6,
-      fill: { color: c.recommended ? T.highlightTint : T.white },
-      line: { color: c.recommended ? T.red : T.border, width: c.recommended ? 1.5 : 1 },
-      shadow: c.recommended
-        ? { type: "outer", color: "000000", opacity: 0.15, blur: 10, offset: 3, angle: 90 }
-        : undefined,
+/** UND-06 (spec §4.10) — the option matrix that closes the sale. Criteria
+ * down, options across, recommended column tinted and stamped. */
+function addComparisonSlide(ctx: Ctx, s: Of<"comparison">) {
+  const { t } = ctx;
+  const accent = accentFor(t, s.domain);
+  titleBlock(ctx, { sectionLabel: s.sectionLabel, assertion: s.assertion, page: s.page, accent });
+
+  const criteriaW = 4.3;
+  const optW = (BAND_W - criteriaW) / s.options.length;
+  const recIdx = s.options.findIndex((o) => o.recommended);
+
+  const rows = s.criteria.map((c, ri) => [
+    {
+      text: c.descriptor ? `${c.label}\n${c.descriptor}` : c.label,
+      bold: true,
+    },
+    ...s.options.map((o) => ({
+      text: o.cells[ri] ?? "",
+      bold: o.recommended,
+    })),
+  ]);
+
+  bandedTable(ctx, {
+    headers: ["Comparing matrix", ...s.options.map((o) => o.name)],
+    widths: [criteriaW, ...s.options.map(() => optW)],
+    rows,
+    y: PAGE.bandTop + 0.1,
+    headerFill: accent,
+    horizontalOnly: true,
+    bodySize: TYPE.bulletBody.size,
+  });
+
+  if (recIdx >= 0) {
+    ctx.slide.addText("*Recommended", {
+      x: PAGE.marginX + criteriaW + optW * recIdx,
+      y: PAGE.bandBottom - 0.28,
+      w: optW, h: 0.28,
+      fontSize: TYPE.boxHeading.size, bold: true, color: accent,
+      align: "center", fontFace: t.font,
     });
-    slide.addText(c.name, { x: x + 0.2, y: 2.0, w: colW - 1.1, h: 0.4, fontSize: 15, bold: true, color: T.ink, fontFace: T.font });
-    if (c.recommended) {
-      slide.addText("PICK", {
-        x: x + colW - 1.05, y: 2.0, w: 0.85, h: 0.35, fontSize: 10, bold: true, color: T.white,
-        fill: { color: T.red }, align: "center", valign: "middle", fontFace: T.font,
+  }
+}
+
+/** SOL-08 (spec §4.19) — the specification backbone: a tinted panel with a
+ * vertical module-group band on the left and the four-column detail table
+ * on the right. Header row is white-on-border here, not accent-filled —
+ * the source decks deliberately drop the red header on this layout so the
+ * tinted panel stays the dominant band. */
+function addTableSlide(ctx: Ctx, s: Of<"table">) {
+  const { slide, pptx, t } = ctx;
+  const accent = accentFor(t, s.domain);
+  titleBlock(ctx, { sectionLabel: s.sectionLabel, assertion: s.assertion, page: s.page, accent });
+
+  const panelX = 0.4;
+  const panelW = PAGE.w - panelX * 2;
+  const panelY = PAGE.bandTop + 0.1;
+  const panelH = PAGE.bandBottom - panelY;
+  const tint = tintFor(t, s.domain);
+
+  slide.addShape(pptx.ShapeType.rect, {
+    x: panelX, y: panelY, w: panelW, h: panelH,
+    fill: { color: tint }, line: { color: tint },
+  });
+
+  const bandW = s.group ? 1.6 : 0.12;
+  if (s.group) {
+    slide.addText(s.group, {
+      x: panelX, y: panelY, w: bandW, h: panelH,
+      fontSize: 11, bold: true, color: t.black,
+      align: "center", valign: "middle", fontFace: t.font,
+    });
+  }
+
+  // Spec widths 2.15/2.05/4.35/1.55 total 12.1, scaled to the space the
+  // vertical band leaves so the table always ends flush with the panel.
+  const tableW = panelW - bandW - 0.24;
+  const base = [2.15, 2.05, 4.35, 1.55];
+  const scale = tableW / base.reduce((a, b) => a + b, 0);
+
+  bandedTable(ctx, {
+    headers: ["Features", "Description", "Details", "Action support"],
+    widths: base.map((w) => w * scale),
+    rows: s.rows.map((r) => [{ text: r.feature, bold: true }, r.description, r.details, r.actionSupport]),
+    x: panelX + bandW + 0.12,
+    y: panelY + 0.12,
+    headerFill: t.white,
+  });
+}
+
+/** SOL-06 (spec §4.17) — feature→benefit value chain. Pure table, and the
+ * semantic contract across the five columns is the whole point of it. */
+function addValueChainSlide(ctx: Ctx, s: Of<"valueChain">) {
+  const { t } = ctx;
+  const accent = accentFor(t, s.domain);
+  titleBlock(ctx, { sectionLabel: s.sectionLabel, assertion: s.assertion, page: s.page, accent });
+
+  const widths = [2.4, 2.6, 2.6, 2.4, 2.2];
+  const totalRows = s.blocks.reduce((n, b) => n + b.rows.length, 0);
+  const captions = s.blocks.filter((b) => b.caption).length;
+  // Distribute the band across every block's header + rows + caption line.
+  const avail = PAGE.bandBottom - (PAGE.bandTop + 0.1);
+  const unitH = avail / (totalRows + s.blocks.length + captions * 0.6);
+
+  let y = PAGE.bandTop + 0.1;
+  for (const block of s.blocks) {
+    if (block.caption) {
+      ctx.slide.addText(block.caption, {
+        x: PAGE.marginX, y, w: BAND_W, h: unitH * 0.6,
+        fontSize: TYPE.boxHeading.size, bold: true, color: accent, valign: "middle", fontFace: t.font,
       });
+      y += unitH * 0.6;
     }
-    slide.addText(`Cost: ${c.cost}`, { x: x + 0.2, y: 2.6, w: colW - 0.4, h: 0.3, fontSize: 11, color: T.gray, fontFace: T.font });
-    slide.addText(`Time: ${c.time}`, { x: x + 0.2, y: 2.95, w: colW - 0.4, h: 0.3, fontSize: 11, color: T.gray, fontFace: T.font });
-    slide.addText(c.fit, { x: x + 0.2, y: 3.4, w: colW - 0.4, h: 2.8, fontSize: 11, color: T.ink, valign: "top", fontFace: T.font });
-  });
+    bandedTable(ctx, {
+      headers: ["Features", "Task", "Output", "Outcome", "Benefit"],
+      widths,
+      rows: block.rows.map((r) => [{ text: r.feature, bold: true }, r.task, r.output, r.outcome, r.benefit]),
+      y,
+      headerFill: accent,
+    });
+    y += unitH * (block.rows.length + 1) + GAP.normal;
+  }
 }
 
-function addTableSlide(pptx: pptxgen, s: Extract<Slide, { kind: "table" }>) {
-  const slide = pptx.addSlide({ masterName: LIGHT_MASTER });
-  addHeader(slide, pptx, s.title, s.subtitle);
-
-  const headerCellOpts: pptxgen.TableCellProps = {
-    fontSize: 10.5, bold: true, color: T.ink, fill: { color: "F0F0F0" }, fontFace: T.font, valign: "middle",
-  };
-  const cellOpts: pptxgen.TableCellProps = { fontSize: 10, color: T.ink, fontFace: T.font, valign: "top" };
-  const mutedCellOpts: pptxgen.TableCellProps = { fontSize: 9.5, color: T.gray, fontFace: T.font, valign: "top" };
-
-  const rows: pptxgen.TableRow[] = [
-    [
-      { text: "Feature", options: headerCellOpts },
-      { text: "Description", options: headerCellOpts },
-      { text: "Details", options: headerCellOpts },
-      { text: "Action support", options: headerCellOpts },
-    ],
-    ...s.rows.map<pptxgen.TableRow>((r) => [
-      { text: r.c1, options: { ...cellOpts, bold: true } },
-      { text: r.c2, options: cellOpts },
-      { text: r.c3, options: cellOpts },
-      { text: r.c4, options: mutedCellOpts },
-    ]),
-  ];
-
-  slide.addTable(rows, {
-    x: 0.6,
-    y: 1.7,
-    w: 12.13,
-    colW: [2.2, 3.93, 3.9, 2.1],
-    border: { type: "solid", color: T.border, pt: 0.5 },
-    autoPage: false,
-  });
-}
-
-function addTimelineSlide(pptx: pptxgen, s: Extract<Slide, { kind: "timeline" }>) {
-  const slide = pptx.addSlide({ masterName: LIGHT_MASTER });
-  addHeader(slide, pptx, s.title, s.subtitle);
+/** EXE-02 (spec §4.26, simplified) — chevron phase ribbon over per-phase
+ * detail columns. The full Gantt grid is a Tier-2 column-span engine; this
+ * is the ribbon + column model without the banded box placement. */
+function addTimelineSlide(ctx: Ctx, s: Of<"timeline">) {
+  const { t } = ctx;
+  const accent = accentFor(t, s.domain);
+  titleBlock(ctx, { sectionLabel: s.sectionLabel, assertion: s.assertion, page: s.page, accent });
 
   const n = s.phases.length;
-  const totalW = 11.9;
-  const startX = 0.65;
-  const colW = totalW / n;
-  const lineY = 2.35;
+  const ribbonY = PAGE.bandTop + 0.15;
+  const ribbonH = 0.4;
 
-  hr(slide, pptx, { x: startX, y: lineY, w: totalW, h: 0.03 });
+  // Walk the brand ramp across the phases so the row reads as progression.
+  const stageFill = (i: number) => t.gradient[Math.round((i / Math.max(1, n - 1)) * (t.gradient.length - 1))];
 
+  chevronRibbon(ctx, {
+    stages: s.phases.map((p, i) => ({ label: p.name, fill: stageFill(i) })),
+    y: ribbonY,
+    h: ribbonH,
+  });
+
+  const overlap = 0.12;
+  const colW = (BAND_W + overlap * (n - 1)) / n;
   s.phases.forEach((p, i) => {
-    const x = startX + colW * i;
-    dot(slide, pptx, { x, y: lineY - 0.24, d: 0.48, color: T.red });
-    slide.addText(p.n, {
-      x, y: lineY - 0.24, w: 0.48, h: 0.48, fontSize: 12, bold: true, color: T.white, align: "center", valign: "middle", fontFace: T.font,
+    const x = PAGE.marginX + i * (colW - overlap);
+    ctx.slide.addText(p.weeks, {
+      x, y: ribbonY + ribbonH + 0.22, w: colW - 0.2, h: 0.3,
+      fontSize: TYPE.boxHeading.size, bold: true, color: accent, align: "center", fontFace: t.font,
     });
-    slide.addText(p.name, { x, y: lineY + 0.42, w: colW - 0.2, h: 0.35, fontSize: 14, bold: true, color: T.ink, fontFace: T.font });
-    slide.addText(p.weeks, { x, y: lineY + 0.8, w: colW - 0.2, h: 0.3, fontSize: 11, bold: true, color: T.red, fontFace: T.font });
-    slide.addText(p.detail, { x, y: lineY + 1.15, w: colW - 0.3, h: 1.7, fontSize: 10, color: T.gray, valign: "top", fontFace: T.font });
+    ctx.slide.addText(p.detail, {
+      x, y: ribbonY + ribbonH + 0.58, w: colW - 0.2, h: 2.4,
+      fontSize: TYPE.bulletBody.size, color: t.gray700, valign: "top", align: "center", fontFace: t.font,
+    });
   });
+
+  if (s.footnote) {
+    ctx.slide.addText(s.footnote, {
+      x: PAGE.marginX, y: PAGE.bandBottom - 0.3, w: BAND_W, h: 0.3,
+      fontSize: TYPE.footnote.size, italic: true, color: accent, fontFace: t.font,
+    });
+  }
 }
 
-function addTeamSlide(pptx: pptxgen, s: Extract<Slide, { kind: "team" }>) {
-  const slide = pptx.addSlide({ masterName: DARK_MASTER });
-  slide.addText(s.title, { x: 0.6, y: 0.5, w: 10, h: 0.5, fontSize: 24, bold: true, color: T.white, fontFace: T.font });
-  slide.addText(s.subtitle, { x: 0.6, y: 1.0, w: 10, h: 0.4, fontSize: 13, color: "AAAAAA", fontFace: T.font });
+/** EXE-06 (spec §4.30) — team profile grid, 2 columns. The `dark` variant
+ * is the only inverted slide in the system. */
+function addTeamSlide(ctx: Ctx, s: Of<"team">) {
+  const { slide, pptx, t } = ctx;
+  const dark = s.variant === "dark";
+  const accent = accentFor(t, s.domain);
+  const nameColor = dark ? t.white : t.black;
+  const bioColor = dark ? t.gray100 : t.gray700;
 
-  const cols = 2;
-  const colW = 5.95;
-  const rowGap = 1.5;
-  const startX = 0.6;
-  const startY = 1.9;
-
-  s.people.forEach((p, i) => {
-    const col = i % cols;
-    const row = Math.floor(i / cols);
-    const x = startX + col * (colW + 0.6);
-    const y = startY + row * rowGap;
-    dot(slide, pptx, { x, y, d: 0.7, color: T.gold });
-    slide.addText(p.initials, { x, y, w: 0.7, h: 0.7, fontSize: 14, bold: true, color: T.ink, align: "center", valign: "middle", fontFace: T.font });
-    slide.addText(p.name, { x: x + 0.85, y, w: colW - 0.9, h: 0.35, fontSize: 14, bold: true, color: T.white, fontFace: T.font });
-    slide.addText(p.role, { x: x + 0.85, y: y + 0.35, w: colW - 0.9, h: 0.3, fontSize: 11, color: T.red, fontFace: T.font });
-    slide.addText(p.yrs, { x: x + 0.85, y: y + 0.65, w: colW - 0.9, h: 0.3, fontSize: 10, color: T.faint, fontFace: T.font });
-  });
-}
-
-function addCommercialSlide(pptx: pptxgen, s: Extract<Slide, { kind: "commercial" }>) {
-  const slide = pptx.addSlide({ masterName: LIGHT_MASTER });
-  addHeader(slide, pptx, s.title, s.subtitle);
-
-  let y = 1.85;
-  for (const r of s.rows) {
-    hr(slide, pptx, { x: 0.6, y: y - 0.05, w: 11.7, h: 0.01 });
-    slide.addText(r.c1, { x: 0.6, y, w: 6.6, h: 0.4, fontSize: 12, color: T.ink, fontFace: T.font, valign: "middle" });
-    slide.addText(r.c2, { x: 8.0, y, w: 1.8, h: 0.4, fontSize: 12, color: T.gray, align: "right", fontFace: T.font, valign: "middle" });
-    slide.addText(r.c3, { x: 9.9, y, w: 2.4, h: 0.4, fontSize: 12, color: T.ink, align: "right", fontFace: T.font, valign: "middle" });
-    y += 0.52;
+  // The title block is black-on-white by construction; on the dark variant
+  // it needs its own inverted pass rather than the shared helper.
+  if (dark) {
+    slide.addText(
+      [
+        { text: `${s.sectionLabel.toUpperCase()}:`, options: { color: accent, bold: true, breakLine: true } },
+        { text: s.assertion.toUpperCase(), options: { color: t.white, bold: true } },
+      ],
+      {
+        x: PAGE.marginX, y: PAGE.marginTop, w: BAND_W, h: 0.62,
+        fontSize: TYPE.sectionLabel.size, fontFace: t.font, valign: "top", lineSpacingMultiple: 0.95,
+      }
+    );
+  } else {
+    titleBlock(ctx, { sectionLabel: s.sectionLabel, assertion: s.assertion, page: s.page, accent });
   }
 
-  hr(slide, pptx, { x: 0.6, y, w: 11.7, h: 0.025, color: T.ink });
-  y += 0.18;
-  slide.addText(s.totalLabel, { x: 0.6, y, w: 6.6, h: 0.45, fontSize: 15, bold: true, color: T.ink, fontFace: T.font });
-  slide.addText(s.total, { x: 9.9, y, w: 2.4, h: 0.45, fontSize: 15, bold: true, color: T.red, align: "right", fontFace: T.font });
-  y += 0.65;
-  slide.addText(s.footnote, { x: 0.6, y, w: 11.7, h: 0.4, fontSize: 9, color: T.faint, fontFace: T.font });
+  const colX = [PAGE.marginX, 6.95];
+  const rowCount = Math.ceil(s.people.length / 2);
+  const yStart = PAGE.bandTop + 0.2;
+  const rowH = (PAGE.bandBottom - yStart) / Math.max(1, rowCount);
+  const d = Math.min(1.3, rowH - 0.25);
+
+  s.people.forEach((p, i) => {
+    const x = colX[i % 2];
+    const y = yStart + Math.floor(i / 2) * rowH;
+    const fill = t.gradient[i % t.gradient.length];
+
+    slide.addShape(pptx.ShapeType.ellipse, { x, y, w: d, h: d, fill: { color: fill }, line: { color: fill } });
+    slide.addText(p.initials, {
+      x, y, w: d, h: d,
+      fontSize: 16, bold: true, color: textColorFor(fill),
+      align: "center", valign: "middle", fontFace: t.font,
+    });
+
+    const tx = x + d + 0.25;
+    const tw = 5.85 - d - 0.25;
+    slide.addText(p.name, { x: tx, y, w: tw, h: 0.3, fontSize: 13, bold: true, color: nameColor, fontFace: t.font });
+    slide.addText(p.role, { x: tx, y: y + 0.3, w: tw, h: 0.26, fontSize: 11, bold: true, color: accent, fontFace: t.font });
+    slide.addText(p.bio, {
+      x: tx, y: y + 0.58, w: tw, h: rowH - 0.7,
+      fontSize: TYPE.bulletBody.size, color: bioColor, align: "justify", valign: "top", fontFace: t.font,
+    });
+  });
 }
 
-/** One compile function, one job: slide JSON in, real OOXML out — the
- * highest-risk piece of the system (Technical Design Document §3.3).
- * Branding lives in two slide masters (masters.ts) so every content slide
- * gets a consistent footer/page-number for free instead of repeating it
- * per builder. */
-export async function buildPptx(title: string, slides: Slide[]): Promise<Buffer> {
+/** COM-01 (spec §4.31) — commercial terms. The cost column carries a
+ * persistent tint down the whole table; rules are horizontal only. */
+function addCommercialSlide(ctx: Ctx, s: Of<"commercial">) {
+  const { t } = ctx;
+  const accent = accentFor(t, s.domain);
+  titleBlock(ctx, { sectionLabel: s.sectionLabel, assertion: s.assertion, page: s.page, accent });
+
+  const rows: (string | { text: string; bold?: boolean; color?: string })[][] = s.rows.map((r) => [
+    { text: r.item, bold: true },
+    r.description,
+    r.cost,
+  ]);
+
+  if (s.paymentTerms?.length) {
+    rows.push([
+      { text: "Payment term", bold: true },
+      s.paymentTerms.map((pt) => `${pt.pct}% ${pt.milestone}`).join("\n"),
+      "",
+    ]);
+  }
+  if (s.total) {
+    rows.push([
+      { text: s.totalLabel ?? "Total investment", bold: true },
+      "",
+      { text: s.total, bold: true, color: accent },
+    ]);
+  }
+
+  bandedTable(ctx, {
+    headers: ["Items", "Description", "Cost (THB)"],
+    widths: [2.7, 6.9, 2.6],
+    rows,
+    y: PAGE.bandTop + 0.1,
+    headerFill: accent,
+    zebraColumn: 2,
+    horizontalOnly: true,
+    bodySize: TYPE.bulletBody.size,
+  });
+
+  if (s.footnote) {
+    ctx.slide.addText(s.footnote, {
+      x: PAGE.marginX, y: PAGE.bandBottom - 0.28, w: BAND_W, h: 0.28,
+      fontSize: TYPE.footnote.size, italic: true, color: accent, fontFace: t.font,
+    });
+  }
+}
+
+/**
+ * Slide JSON in, real OOXML out. Branding lives in two slide masters
+ * (masters.ts) and geometry in the shared primitives (helpers.ts), so a
+ * builder here is only ever "map this content onto that layout".
+ *
+ * `theme` lets a caller restyle an entire deck — accent ramp, font, logo,
+ * footer, page numbers — without touching a builder.
+ */
+export async function buildPptx(title: string, slides: Slide[], theme?: DeckTheme): Promise<Buffer> {
   const pptx = new pptxgen();
   pptx.layout = "LAYOUT_WIDE";
   pptx.author = "Balerion";
   pptx.company = "Balerion";
   pptx.title = title;
-  defineMasters(pptx);
 
-  for (const slide of slides) {
-    switch (slide.kind) {
-      case "title":
-        addTitleSlide(pptx, slide);
-        break;
-      case "summary":
-        addSummarySlide(pptx, slide);
-        break;
-      case "bullets":
-        addBulletsSlide(pptx, slide);
-        break;
-      case "comparison":
-        addComparisonSlide(pptx, slide);
-        break;
-      case "table":
-        addTableSlide(pptx, slide);
-        break;
-      case "timeline":
-        addTimelineSlide(pptx, slide);
-        break;
-      case "team":
-        addTeamSlide(pptx, slide);
-        break;
-      case "commercial":
-        addCommercialSlide(pptx, slide);
-        break;
+  const t = resolveTheme(theme ?? {});
+  defineMasters(pptx, t);
+
+  for (const s of slides) {
+    // Covers and dividers still get the footer and page number — the
+    // reference deck numbers page 1 — but not the corner wordmark, since
+    // they carry their own large one.
+    const master =
+      s.kind === "title" || s.kind === "divider"
+        ? COVER_MASTER
+        : s.kind === "team" && s.variant === "dark"
+          ? DARK_MASTER
+          : LIGHT_MASTER;
+    const slide = pptx.addSlide({ masterName: master });
+    const ctx: Ctx = { slide, pptx, t };
+
+    if (s.notes) slide.addNotes(s.notes);
+
+    switch (s.kind) {
+      case "title": addTitleSlide(ctx, s); break;
+      case "divider": addDividerSlide(ctx, s); break;
+      case "summary": addSummarySlide(ctx, s); break;
+      case "bullets": addBulletsSlide(ctx, s); break;
+      case "comparison": addComparisonSlide(ctx, s); break;
+      case "table": addTableSlide(ctx, s); break;
+      case "valueChain": addValueChainSlide(ctx, s); break;
+      case "timeline": addTimelineSlide(ctx, s); break;
+      case "team": addTeamSlide(ctx, s); break;
+      case "commercial": addCommercialSlide(ctx, s); break;
     }
   }
 
   const out = await pptx.write({ outputType: "nodebuffer", compression: true });
   return out as Buffer;
 }
+
+// Referenced by the layout math above; re-exported so a caller can measure
+// against the same band the builders use.
+export { PAGE, STROKE };

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { ArrowRight, Check, FileCheck2, Sparkles, Upload } from "lucide-react";
+import { ArrowRight, Check, FileCheck2, Upload } from "lucide-react";
 import { useAppStore } from "@/store/app-store";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -47,7 +47,6 @@ export function LandingScreen() {
   const start = useAppStore((s) => s.start);
   const brief = useAppStore((s) => s.brief);
   const setBrief = useAppStore((s) => s.setBrief);
-  const useSample = useAppStore((s) => s.useSample);
   const fileName = useAppStore((s) => s.fileName);
   const parsing = useAppStore((s) => s.parsing);
   const dragging = useAppStore((s) => s.dragging);
@@ -121,7 +120,7 @@ export function LandingScreen() {
             )}
           >
             <div className="mt-6.5 flex items-center gap-2.5 font-mono text-[11.5px] text-detail">
-              <span>16:9 deck · up to 10 slides</span>
+              <span>16:9 deck · up to 20 slides</span>
               <span className="size-1 rounded-full bg-border" />
               <span>PowerPoint or PDF</span>
               <span className="size-1 rounded-full bg-border" />
@@ -164,7 +163,7 @@ export function LandingScreen() {
                 </div>
               </div>
               <div className="mt-3.5 text-center font-mono text-[11px] text-detail">
-                A drafted Northgate Logistics deck · 10 slides
+                  Powered by Antrhopics Claude
               </div>
             </div>
           </div>
@@ -271,15 +270,7 @@ export function LandingScreen() {
                   placeholder="Paste or type the brief — business goals, symptoms, constraints…"
                   className="h-33 resize-none bg-card text-[14px] leading-[1.55]"
                 />
-                <div className="flex items-center justify-between">
-                  <button
-                    type="button"
-                    onClick={useSample}
-                    className="inline-flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-[12px] text-accent underline decoration-accent/40 underline-offset-[3px] transition-colors hover:decoration-accent"
-                  >
-                    <Sparkles className="size-3" />
-                    Use a sample brief
-                  </button>
+                <div className="flex items-center justify-end">
                   <span className="font-mono text-[11.5px] text-detail">{chars} characters</span>
                 </div>
               </div>
@@ -400,6 +391,9 @@ export function LandingScreen() {
           </div>
         </div>
       ) : null}
+      <div className="mt-3.5 text-center font-mono text-[11px] text-detail">
+          Made by Josh Perry
+      </div>
     </div>
   );
 }

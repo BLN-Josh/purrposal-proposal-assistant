@@ -1,14 +1,23 @@
 export type DeckShapeId = "full" | "discovery" | "exec";
 export type DepthId = "concise" | "standard" | "detailed";
 
-/** Every section the pipeline can produce, in fixed deck order. */
+/**
+ * Every section the pipeline can produce, in fixed deck order. The order
+ * follows the deck-system spec's narrative arc (§3): cover → exec summary →
+ * understanding → options → [divider] → solution → [divider] → execution →
+ * commercial. The two `*Divider` entries are structural chapter breaks, not
+ * generated content.
+ */
 export type SectionId =
   | "cover"
   | "exec"
   | "understanding"
   | "options"
+  | "solutionDivider"
   | "solution"
   | "features"
+  | "valueChain"
+  | "executionDivider"
   | "method"
   | "change"
   | "team"
@@ -19,8 +28,11 @@ export const SECTION_ORDER: SectionId[] = [
   "exec",
   "understanding",
   "options",
+  "solutionDivider",
   "solution",
   "features",
+  "valueChain",
+  "executionDivider",
   "method",
   "change",
   "team",
@@ -46,7 +58,7 @@ export const DECK_SHAPE_OPTIONS: DeckShapeOption[] = [
     id: "discovery",
     label: "Discovery pitch",
     description: "Problem, options, approach. No pricing.",
-    sections: ["cover", "understanding", "options", "solution", "method"],
+    sections: ["cover", "understanding", "options", "solutionDivider", "solution", "method"],
   },
   {
     id: "exec",

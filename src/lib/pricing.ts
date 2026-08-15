@@ -2,7 +2,8 @@ import {
   WORKSTREAM_RATE_THB,
   WORKSTREAM_LABEL,
   HYPER_CARE_MAN_DAYS,
-  PAYMENT_TERMS,
+  PAYMENT_SCHEDULE,
+  COMMERCIAL_FOOTNOTE,
 } from "@/config/rate-card";
 import type { ProposalConfig, Workstream } from "@/config/types";
 import type { CommercialContent } from "@/lib/slides/schema";
@@ -54,16 +55,19 @@ export function computeCommercialTerms(
     const manDays = manDaysByWorkstream.get(w)!;
     const cost = manDays * WORKSTREAM_RATE_THB[w];
     totalTHB += cost;
-    return { c1: WORKSTREAM_LABEL[w], c2: `${manDays} md`, c3: cost.toLocaleString("en-US") };
+    return {
+      item: WORKSTREAM_LABEL[w],
+      description: `${manDays} man-days at the ${WORKSTREAM_LABEL[w].toLowerCase()} blended day rate`,
+      cost: `THB ${cost.toLocaleString("en-US")}`,
+    };
   });
 
   return {
-    title: "Commercial Terms",
-    subtitle: "Computed from the rate card — no figure is generated",
     rows,
     totalLabel: "Total investment",
     total: `THB ${totalTHB.toLocaleString("en-US")}`,
-    footnote: PAYMENT_TERMS,
+    paymentTerms: PAYMENT_SCHEDULE,
+    footnote: COMMERCIAL_FOOTNOTE,
   };
 }
 
@@ -80,8 +84,15 @@ export function addScopeLine(
 ): CommercialContent {
   const rate = WORKSTREAM_RATE_THB.development;
   const cost = manDays * rate;
-  const rows = [...current.rows, { c1: label, c2: `${manDays} md`, c3: cost.toLocaleString("en-US") }];
-  const priorTotal = parseTotalTHB(current.total);
+  const rows = [
+    ...current.rows,
+    {
+      item: label,
+      description: `${manDays} man-days at the application development blended day rate`,
+      cost: `THB ${cost.toLocaleString("en-US")}`,
+    },
+  ];
+  const priorTotal = parseTotalTHB(current.total ?? "");
   const total = `THB ${(priorTotal + cost).toLocaleString("en-US")}`;
   return { ...current, rows, total };
 }

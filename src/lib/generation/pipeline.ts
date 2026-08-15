@@ -8,6 +8,7 @@ import {
   ProjectUnderstandingOutput,
   OptionAnalysisOutput,
   SolutionProposalOutput,
+  ValueChainOutput,
   ExecutionMethodologyOutput,
   ExecutiveSummaryOutput,
 } from "./schemas";
@@ -15,10 +16,11 @@ import {
   projectUnderstandingPrompt,
   optionAnalysisPrompt,
   solutionProposalPrompt,
+  valueChainPrompt,
   executionMethodologyPrompt,
   executiveSummaryPrompt,
 } from "./prompts";
-import { Deck, type Slide, type TableRow } from "@/lib/slides/schema";
+import { Deck, type Slide, type FeatureRow, type ComparisonContent } from "@/lib/slides/schema";
 import type { GenerateRequest } from "@/lib/api-types";
 
 export type ProgressEmitter = (step: string, label: string) => void;
@@ -32,17 +34,47 @@ function sumWeeks(phases: { weeks: string }[]): string {
 }
 
 /**
- * FR-3.1's 7-section pipeline, generated in this order — Executive Summary
- * always last even though it displays first (§0 of the Technical Design
- * Document / PRD FR-3.1). Boilerplate slides (Change Management, Team) are
- * retrieved from config, never generated (FR-3.2). Commercial Terms is a
- * deterministic rate-card calculation, never an LLM completion (FR-3.4).
+ * Deck-system spec V06 requires exactly one recommended option. That rule is
+ * kept out of the tool schema on purpose: a zod refinement failure costs a
+ * whole model round-trip, whereas the correct answer is knowable here
+ * without one. If the model marks none or several, keep the last option —
+ * the source decks always place the recommended column last (spec §4.10
+ * "the recommended column is last").
+ */
+function normalizeRecommended(content: ComparisonContent): ComparisonContent {
+  const flagged = content.options.filter((o) => o.recommended).length;
+  if (flagged === 1) return content;
+  const lastIdx = content.options.length - 1;
+  return {
+    ...content,
+    options: content.options.map((o, i) => ({ ...o, recommended: i === lastIdx })),
+  };
+}
+
+/** Trim or pad each option's verdict list so it stays index-aligned to the
+ * criteria — a mismatch would silently blank cells in the matrix. */
+function alignCells(content: ComparisonContent): ComparisonContent {
+  const n = content.criteria.length;
+  return {
+    ...content,
+    options: content.options.map((o) => ({
+      ...o,
+      cells: Array.from({ length: n }, (_, i) => o.cells[i] ?? "—"),
+    })),
+  };
+}
+
+/**
+ * FR-3.1's section pipeline. Executive Summary is always generated last even
+ * though it displays first (§0 of the Technical Design Document / PRD
+ * FR-3.1). Boilerplate slides (Change Management, Team) are retrieved from
+ * config, never generated (FR-3.2). Commercial Terms is a deterministic
+ * rate-card calculation, never an LLM completion (FR-3.4).
  *
- * The deck shape only decides which of these standardized sections are kept
- * in the final deck (Discovery/Exec shapes render a subset) — every shape
- * still runs the same generic pipeline underneath. Execution Methodology and
- * Commercial Terms always run because Executive Summary depends on their
- * output even when its own slide is Discovery-shape-excluded.
+ * Section dividers are inserted structurally rather than generated: the
+ * deck-system spec's narrative arc (§3) puts a DIV-01 before the Solution
+ * and Execution chapters, and that placement is a property of the arc, not
+ * a judgement call worth a model call.
  */
 export async function runGenerationPipeline(
   req: GenerateRequest,
@@ -56,7 +88,7 @@ export async function runGenerationPipeline(
 
   if (fileText) emit("extract", "Extracting source document…");
 
-  const [understanding, optionAnalysis] = await Promise.all([
+  const [understanding, optionAnalysisRaw] = await Promise.all([
     generateStructured({
       model,
       schema: ProjectUnderstandingOutput,
@@ -68,6 +100,7 @@ export async function runGenerationPipeline(
       ...optionAnalysisPrompt(brief, fileText, config, depth),
     }),
   ]);
+  const optionAnalysis = { ...optionAnalysisRaw, ...alignCells(normalizeRecommended(optionAnalysisRaw)) };
   emit("understanding", "Project understanding · option analysis");
 
   const solutionProposal = await generateStructured({
@@ -80,30 +113,33 @@ export async function runGenerationPipeline(
   let selectedKeys = solutionProposal.selectedModuleKeys.filter((k) => validKeys.has(k));
   if (!selectedKeys.length) selectedKeys = config.modules.map((m) => m.key);
   const selectedModules = config.modules.filter((m) => selectedKeys.includes(m.key));
+  const selectedNames = selectedModules.map((m) => m.name);
 
-  // Feature Detail Table is retrieval from config, not generation (PRD FR-3.1 step 4).
-  const featureRows: TableRow[] = selectedModules.map((m) => ({
-    c1: m.name,
-    c2: m.description,
-    c3: m.details,
-    c4: m.actionSupport,
+  // Feature Detail is retrieval from config, not generation (PRD FR-3.1 step 4).
+  const featureRows: FeatureRow[] = selectedModules.map((m) => ({
+    feature: m.name,
+    description: m.description,
+    details: m.details,
+    actionSupport: m.actionSupport,
   }));
   emit("solution", "Solution proposal · feature detail");
 
-  const executionMethodology = await generateStructured({
-    model,
-    schema: ExecutionMethodologyOutput,
-    ...executionMethodologyPrompt(
-      brief,
-      config,
-      selectedModules.map((m) => m.name),
-      depth
-    ),
-  });
+  const [valueChain, executionMethodology] = await Promise.all([
+    generateStructured({
+      model,
+      schema: ValueChainOutput,
+      ...valueChainPrompt(brief, selectedNames, depth),
+    }),
+    generateStructured({
+      model,
+      schema: ExecutionMethodologyOutput,
+      ...executionMethodologyPrompt(brief, config, selectedNames, depth),
+    }),
+  ]);
 
   // Deterministic — never an LLM completion (NFR-2).
   const commercial = computeCommercialTerms(config, selectedKeys);
-  emit("execution", "Execution methodology · commercial terms");
+  emit("execution", "Value chain · execution methodology · commercial terms");
 
   const executiveSummary = needsExecSummary
     ? await generateStructured({
@@ -116,7 +152,7 @@ export async function runGenerationPipeline(
           optionAnalysis,
           solutionProposal,
           totalWeeks: sumWeeks(executionMethodology.phases),
-          commercialTotal: commercial.total,
+          commercialTotal: commercial.total ?? "",
         }),
       })
     : null;
@@ -124,82 +160,99 @@ export async function runGenerationPipeline(
 
   const today = new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" });
   const deckTitle = `${understanding.projectTitle} — ${understanding.clientName}`;
+  const id = () => crypto.randomUUID();
 
   const bySection: Partial<Record<SectionId, Slide>> = {
     cover: {
-      id: crypto.randomUUID(),
+      id: id(),
       kind: "title",
-      eyebrow: "Proposal Assistant",
       title: understanding.projectTitle,
       subtitle: `Prepared for ${understanding.clientName}`,
-      footer: `Confidential · ${today}`,
+      date: today.toUpperCase(),
     },
     understanding: {
-      id: crypto.randomUUID(),
+      id: id(),
       kind: "bullets",
-      title: understanding.title,
-      subtitle: understanding.subtitle,
-      bullets: understanding.bullets,
+      sectionLabel: understanding.sectionLabel,
+      assertion: understanding.assertion,
+      intro: understanding.intro,
+      rows: understanding.rows,
+      conclusion: understanding.conclusion,
     },
     options: {
-      id: crypto.randomUUID(),
+      id: id(),
       kind: "comparison",
-      title: optionAnalysis.title,
-      subtitle: optionAnalysis.subtitle,
-      cols: optionAnalysis.cols,
+      sectionLabel: optionAnalysis.sectionLabel,
+      assertion: optionAnalysis.assertion,
+      criteria: optionAnalysis.criteria,
+      options: optionAnalysis.options,
+    },
+    solutionDivider: {
+      id: id(),
+      kind: "divider",
+      sectionName: "Solution Proposal",
+      deckSubtitle: deckTitle,
     },
     solution: {
-      id: crypto.randomUUID(),
+      id: id(),
       kind: "bullets",
-      title: solutionProposal.title,
-      subtitle: solutionProposal.subtitle,
-      bullets: solutionProposal.bullets,
+      sectionLabel: solutionProposal.sectionLabel,
+      assertion: solutionProposal.assertion,
+      intro: solutionProposal.intro,
+      rows: solutionProposal.rows,
+      conclusion: solutionProposal.conclusion,
     },
     features: {
-      id: crypto.randomUUID(),
+      id: id(),
       kind: "table",
-      title: "Feature Detail",
-      subtitle: "Module-level scope, four-column standard",
-      rows: featureRows,
+      sectionLabel: "SOLUTION PROPOSAL",
+      assertion: `MODULE-LEVEL SCOPE ACROSS ${featureRows.length} MODULES SELECTED AGAINST THE BRIEF'S STATED CONSTRAINTS`,
+      group: "Module scope",
+      rows: featureRows.slice(0, 6),
+    },
+    valueChain: {
+      id: id(),
+      kind: "valueChain",
+      sectionLabel: valueChain.sectionLabel,
+      assertion: valueChain.assertion,
+      blocks: valueChain.blocks,
+    },
+    executionDivider: {
+      id: id(),
+      kind: "divider",
+      sectionName: "Execution Plan",
+      deckSubtitle: deckTitle,
     },
     method: {
-      id: crypto.randomUUID(),
+      id: id(),
       kind: "timeline",
-      title: executionMethodology.title,
-      subtitle: executionMethodology.subtitle,
+      sectionLabel: executionMethodology.sectionLabel,
+      assertion: executionMethodology.assertion,
       phases: executionMethodology.phases,
+      footnote: executionMethodology.footnote,
     },
-    change: {
-      id: crypto.randomUUID(),
-      kind: "bullets",
-      title: CHANGE_MANAGEMENT_SLIDE.title,
-      subtitle: CHANGE_MANAGEMENT_SLIDE.subtitle,
-      bullets: CHANGE_MANAGEMENT_SLIDE.bullets,
-    },
+    change: { id: id(), kind: "bullets", ...CHANGE_MANAGEMENT_SLIDE },
     team: {
-      id: crypto.randomUUID(),
+      id: id(),
       kind: "team",
-      title: "Delivery Team",
-      subtitle: "Named team, allocated for the engagement",
+      sectionLabel: "EXECUTION METHODOLOGY",
+      assertion: `A NAMED DELIVERY TEAM OF ${TEAM_ROSTER.length} ALLOCATED TO THIS ENGAGEMENT FOR ITS FULL DURATION`,
       people: TEAM_ROSTER,
     },
     commercial: {
-      id: crypto.randomUUID(),
+      id: id(),
       kind: "commercial",
-      title: commercial.title,
-      subtitle: commercial.subtitle,
-      rows: commercial.rows,
-      totalLabel: commercial.totalLabel,
-      total: commercial.total,
-      footnote: commercial.footnote,
+      sectionLabel: "COMMERCIAL TERM",
+      assertion: `TOTAL INVESTMENT OF ${commercial.total ?? "THE COMPUTED FIGURE"} COVERING DEVELOPMENT, INTEGRATION, TRAINING AND HYPER-CARE`,
+      ...commercial,
     },
     ...(executiveSummary
       ? {
           exec: {
-            id: crypto.randomUUID(),
+            id: id(),
             kind: "summary",
-            title: executiveSummary.title,
-            subtitle: executiveSummary.subtitle,
+            sectionLabel: executiveSummary.sectionLabel,
+            assertion: executiveSummary.assertion,
             rows: executiveSummary.rows,
           } satisfies Slide,
         }
@@ -212,7 +265,7 @@ export async function runGenerationPipeline(
     .filter((s): s is Slide => !!s);
 
   const deck: Deck = {
-    deckId: crypto.randomUUID(),
+    deckId: id(),
     meta: {
       title: deckTitle,
       deckShape: shape.id,

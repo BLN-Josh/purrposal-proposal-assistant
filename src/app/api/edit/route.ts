@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Slide, contentSchemaFor, type CommercialContent } from "@/lib/slides/schema";
+import { Slide, editSchemaFor, type CommercialContent } from "@/lib/slides/schema";
 import { generateStructured } from "@/lib/anthropic";
 import { classifyEditIntent, extractScopeLabel, MONEY_GUARD_MESSAGES } from "@/lib/generation/edit-guard";
 import { addScopeLine } from "@/lib/pricing";
@@ -68,11 +68,13 @@ async function editOneSlide(
 
   // intent === "content" — a normal, scoped, structured-output regeneration.
   try {
-    const schema = contentSchemaFor(slide.kind);
+    const schema = editSchemaFor(slide.kind);
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { id: _id, kind: _kind, notes: _notes, revised: _revised, ...content } = slide;
 
-    const system = `You are revising ONE slide of a client-facing technology-consulting proposal deck. The slide's kind is "${slide.kind}" and its field structure must stay identical — same keys, same shapes, same array lengths where the schema requires them. Only change what the instruction asks; keep everything else faithful to the original. Never invent a specific price or currency figure.`;
+    const system = `You are revising ONE slide of a client-facing technology-consulting proposal deck. The slide's kind is "${slide.kind}" and its field structure must stay identical — same keys, same shapes, same array lengths where the schema requires them. Only change what the instruction asks; keep everything else faithful to the original. Never invent a specific price or currency figure.
+
+If the slide has an "assertion", it follows a house title grammar: it is the slide's conclusion rather than its topic, written in UPPERCASE, 8-18 words, quantified wherever the slide's own data contains a number, and using an em-dash or colon to split the fact from its consequence. Preserve that grammar in anything you return — and if your edit changes the underlying numbers, update the assertion to match rather than leaving a headline that contradicts the body.`;
     const prompt = `Current slide content (JSON):\n${JSON.stringify(content)}\n\nInstruction: "${instruction}"\n\nReturn the complete revised slide content in the same shape.`;
 
     const revisedContent = (await generateStructured({ model, schema, system, prompt })) as Record<

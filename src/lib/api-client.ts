@@ -85,12 +85,13 @@ export async function postEdit(payload: EditRequest): Promise<EditResponse> {
 
 export async function fetchExportPptx(
   slides: import("@/lib/slides/schema").Slide[],
-  title: string
+  title: string,
+  theme?: import("@/lib/slides/schema").DeckTheme
 ): Promise<Blob> {
   const res = await fetch("/api/export/pptx", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ slides, title }),
+    body: JSON.stringify({ slides, title, theme }),
   }).catch(() => {
     throw new Error(NETWORK_FAILURE);
   });

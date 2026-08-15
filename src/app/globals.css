@@ -10,6 +10,19 @@
   --color-body: var(--body);
   --color-detail: var(--detail);
   --color-highlight: var(--highlight);
+
+  /* Slide surface — see the `--slide-*` / `--brand-*` block below. */
+  --color-slide: var(--slide);
+  --color-slide-ink: var(--slide-ink);
+  --color-slide-body: var(--slide-body);
+  --color-slide-muted: var(--slide-muted);
+  --color-slide-line: var(--slide-line);
+  --color-slide-wash: var(--slide-wash);
+  --color-brand-1: var(--brand-1);
+  --color-brand-2: var(--brand-2);
+  --color-brand-3: var(--brand-3);
+  --color-brand-4: var(--brand-4);
+  --color-brand-5: var(--brand-5);
   --font-sans: var(--font-plex-sans);
   --font-mono: var(--font-plex-mono);
   --font-display: var(--font-fraunces);
@@ -53,10 +66,36 @@
 }
 
 /*
- * Palette matches the approved AI Proposal Assistant mock exactly
- * (AI Proposal Assistant.dc.html) — do not drift from these hexes.
+ * TWO PALETTES, ON PURPOSE.
+ *
+ * 1. The `--background/--foreground/--body/--detail/--highlight` set below is
+ *    the *editor chrome* — the warm cream shell from the approved mock. It
+ *    dresses the app around the deck: sidebar, buttons, chat, log.
+ *
+ * 2. The `--slide-*` and `--brand-*` set is the *deck itself*. A slide is a
+ *    Balerion artifact, not app furniture: white ground, black body copy, and
+ *    the brand red→amber ramp for every accent. These values mirror
+ *    `src/lib/pptx/theme.ts` one-for-one, so what the editor previews and what
+ *    PowerPoint opens are the same design system rather than two that drifted.
+ *    Change a brand hex here and you must change it there too.
+ *
+ * Row/cell washes are produced with Tailwind opacity modifiers over the white
+ * ground (`bg-brand-1/10`) rather than as separate tint tokens — one source of
+ * truth per colour, and it stays correct if a brand hex moves.
  */
 :root {
+  --slide: #ffffff;
+  --slide-ink: #000000;
+  --slide-body: #333333;
+  --slide-muted: #595959;
+  --slide-line: #bfbfbf;
+  --slide-wash: #f2f2f2;
+  --brand-1: #ef233c;
+  --brand-2: #f23a3e;
+  --brand-3: #f44f40;
+  --brand-4: #f76c43;
+  --brand-5: #fc9947;
+
   --background: #fffdf7;
   --foreground: #2f1000;
   --body: #5d4436;
@@ -97,6 +136,18 @@
 /* Single-theme product by design (matches the mock) — .dark mirrors :root
    so the app never visually shifts if a theme toggle is ever wired up. */
 .dark {
+  --slide: #ffffff;
+  --slide-ink: #000000;
+  --slide-body: #333333;
+  --slide-muted: #595959;
+  --slide-line: #bfbfbf;
+  --slide-wash: #f2f2f2;
+  --brand-1: #ef233c;
+  --brand-2: #f23a3e;
+  --brand-3: #f44f40;
+  --brand-4: #f76c43;
+  --brand-5: #fc9947;
+
   --background: #fffdf7;
   --foreground: #2f1000;
   --body: #5d4436;

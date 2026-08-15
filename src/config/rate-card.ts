@@ -50,5 +50,14 @@ export const WORKSTREAM_LABEL: Record<Workstream, string> = {
 };
 
 export const HYPER_CARE_MAN_DAYS = 20;
-export const PAYMENT_TERMS =
-  "40% on signature · 30% at Phase 1 milestone · 30% at Phase 2 milestone · excludes VAT";
+
+/** Structured so COM-01 can render it as its own table row and the deck
+ * linter can assert the percentages sum to 100 (deck-system spec V10) —
+ * a free-text terms string can't be checked. */
+export const PAYMENT_SCHEDULE: { pct: number; milestone: string }[] = [
+  { pct: 40, milestone: "on signature" },
+  { pct: 30, milestone: "at Phase 1 milestone" },
+  { pct: 30, milestone: "at Phase 2 milestone" },
+];
+
+export const COMMERCIAL_FOOTNOTE = "All figures exclude VAT. Cloud infrastructure billed at actual usage.";

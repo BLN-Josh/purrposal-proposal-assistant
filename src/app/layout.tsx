@@ -51,13 +51,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className={`${fraunces.variable} ${plexSans.variable} ${plexMono.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full flex-col bg-background text-foreground">
+      <body className="flex h-full flex-col overflow-hidden bg-background text-foreground">
         <QueryProvider>{children}</QueryProvider>
-        {/* theme="light" forces Sonner's palette without needing a next-themes
-            provider — this product is intentionally single-theme (design brief
-            §3), and wrapping in a ThemeProvider just to satisfy useTheme()
-            caused a client/server hydration mismatch on <html> for no benefit. */}
-        <Toaster position="bottom-right" theme="light" />
+        <Toaster position="bottom-right" theme="light" offset={{ bottom: "20px" }} />
       </body>
     </html>
   );

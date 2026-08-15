@@ -2,9 +2,8 @@
 
 import { create } from "zustand";
 import { toast } from "sonner";
-import type { Slide } from "@/lib/slides/schema";
+import type { Slide, DeckTheme } from "@/lib/slides/schema";
 import { parseFile, streamGenerate, postEdit, fetchExportPptx } from "@/lib/api-client";
-import { SAMPLE_BRIEF } from "@/lib/sample-brief";
 import { downloadBlob, slugify } from "@/lib/download";
 import { DEFAULT_EDIT_MODEL, DEFAULT_GENERATE_MODEL } from "@/lib/models";
 import { ACCEPTED_EXTENSIONS, MAX_FILE_BYTES, MAX_FILE_LABEL, UNSUPPORTED_FILE_MESSAGE } from "@/config/upload";
@@ -52,6 +51,9 @@ interface AppState {
   deckId: string | null;
   deckTitle: string;
   slides: Slide[];
+  /** Per-deck restyle (accent ramp, font, logo, footer, page numbers) sent
+   * to the exporter. Undefined means the Balerion default theme. */
+  deckTheme: DeckTheme | undefined;
   sel: string[];
   multi: boolean;
   draft: string;
@@ -67,7 +69,6 @@ interface AppState {
   setDeckShape: (deckShape: DeckShapeId) => void;
   setDepth: (depth: DepthId) => void;
   setBrief: (brief: string) => void;
-  useSample: () => void;
   setDragging: (dragging: boolean) => void;
   onFile: (file: File) => Promise<void>;
   clearFile: () => void;
@@ -103,6 +104,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   deckId: null,
   deckTitle: "",
   slides: [],
+  deckTheme: undefined,
   sel: [],
   multi: false,
   draft: "",
@@ -118,7 +120,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   setDeckShape: (deckShape) => set({ deckShape }),
   setDepth: (depth) => set({ depth }),
   setBrief: (brief) => set({ brief }),
-  useSample: () => set({ brief: SAMPLE_BRIEF }),
   setDragging: (dragging) => set({ dragging }),
 
   clearFile: () => set({ fileName: null, fileText: null }),
@@ -209,6 +210,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       brief: "",
     }),
 
+
   toggleMulti: () =>
     set((s) => ({ multi: !s.multi, sel: s.multi ? s.sel.slice(0, 1) : s.sel })),
 
@@ -296,7 +298,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ exporting: "pptx" });
 
     const filename = `${slugify(deckTitle || "proposal")}.pptx`;
-    const job = fetchExportPptx(slides, deckTitle || "Proposal").then((blob) => {
+    const job = fetchExportPptx(slides, deckTitle || "Proposal", get().deckTheme).then((blob) => {
       downloadBlob(blob, filename);
       return filename;
     });

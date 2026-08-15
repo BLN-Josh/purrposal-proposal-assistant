@@ -110,24 +110,6 @@ export function WorkspaceScreen() {
 
       <div className="flex min-h-0 flex-1">
         <div className="flex w-[38%] min-h-0 flex-none flex-col border-r border-border bg-card">
-          <div className="flex flex-none flex-col gap-1.5 border-b border-border p-4">
-            <label htmlFor="model-ws" className="text-xs font-semibold text-body">
-              Model
-            </label>
-            <Select value={model} onValueChange={(v) => v && setModel(v)}>
-              <SelectTrigger id="model-ws" className="h-11 w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {MODEL_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>
-                    {o.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
           <ScrollArea className="min-h-0 flex-1">
             <div className="p-4">
               <div className="flex items-center gap-1.5 font-mono text-[10.5px] tracking-[0.09em] text-detail uppercase">
@@ -211,15 +193,29 @@ export function WorkspaceScreen() {
               className="h-22 resize-none bg-card text-[14px] leading-[1.55]"
             />
             <div className="flex items-center justify-between gap-3">
-              <span className="font-mono text-[11px] text-detail">⌘⏎ to send</span>
-              <Button
-                onClick={() => void send()}
-                disabled={busy || !draft.trim()}
-                className="h-11 min-w-26 gap-2 px-5"
-              >
-                {busy ? <Loader2 className="size-3.25 animate-spin" /> : null}
-                {busy ? "Sending" : "Send"}
-              </Button>
+              <Select value={model} onValueChange={(v) => v && setModel(v)}>
+                <SelectTrigger id="model-ws" className="h-11 w-32.5">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {MODEL_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="flex items-center gap-3">
+                <span className="hidden font-mono text-[11px] text-detail sm:inline">⌘⏎ to send</span>
+                <Button
+                  onClick={() => void send()}
+                  disabled={busy || !draft.trim()}
+                  className="h-11 min-w-26 gap-2 px-5"
+                >
+                  {busy ? <Loader2 className="size-3.25 animate-spin" /> : null}
+                  {busy ? "Sending" : "Send"}
+                </Button>
+              </div>
             </div>
           </div>
         </div>
