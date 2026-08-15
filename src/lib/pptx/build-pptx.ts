@@ -421,6 +421,12 @@ export async function buildPptx(title: string, slides: Slide[], theme?: DeckThem
   defineMasters(pptx, t);
 
   for (const s of slides) {
+    // A placeholder has no layout to render. Skipping it here rather than
+    // only in the client means every entry point — the export route, a
+    // future scheduled export — drops it, instead of relying on each caller
+    // to remember. The client filters too, so it can report the count.
+    if (s.kind === "placeholder") continue;
+
     // Covers and dividers still get the footer and page number — the
     // reference deck numbers page 1 — but not the corner wordmark, since
     // they carry their own large one.

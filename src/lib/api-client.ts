@@ -1,4 +1,10 @@
-import type { GenerateEvent, GenerateRequest, EditRequest, EditResponse } from "@/lib/api-types";
+import type {
+  GenerateEvent,
+  GenerateRequest,
+  EditRequest,
+  EditResponse,
+  SlideOutlineEntry,
+} from "@/lib/api-types";
 
 const NETWORK_FAILURE = "Couldn't reach the server. Check your connection and try again.";
 
@@ -66,6 +72,19 @@ export async function streamGenerate(
     if (e instanceof DOMException && e.name === "AbortError") throw e;
     throw new Error("Generation failed. Retry, or try a shorter brief.");
   }
+}
+
+/** Titles-only map of the deck, sent alongside an edit so the model can stay
+ * consistent with slides it isn't being shown. See SlideOutlineEntry. */
+export function deckOutline(slides: import("@/lib/slides/schema").Slide[]): SlideOutlineEntry[] {
+  return slides.map((s, i) => ({
+    id: s.id,
+    index: i + 1,
+    kind: s.kind,
+    ...("assertion" in s && s.assertion ? { assertion: s.assertion } : {}),
+    ...(s.kind === "title" ? { title: s.title } : {}),
+    ...(s.kind === "divider" ? { title: s.sectionName } : {}),
+  }));
 }
 
 export async function postEdit(payload: EditRequest): Promise<EditResponse> {

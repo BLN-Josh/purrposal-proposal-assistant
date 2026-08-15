@@ -1,7 +1,13 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { ArrowRight, Check, FileCheck2, Upload } from "lucide-react";
+import {
+  ArrowRight,
+  Check,
+  ChevronDownIcon,
+  FileCheck2,
+  Upload,
+} from "lucide-react";
 import { useAppStore } from "@/store/app-store";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -9,14 +15,18 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { DECK_SHAPE_OPTIONS, DEPTH_OPTIONS, estimateReadMinutes } from "@/config/deck-shapes";
-import { MODEL_OPTIONS } from "@/lib/models";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  DECK_SHAPE_OPTIONS,
+  DEPTH_OPTIONS,
+  estimateReadMinutes,
+} from "@/config/deck-shapes";
+import { MODEL_OPTIONS, MODEL_LABEL } from "@/lib/models";
 import { cn } from "@/lib/utils";
 import { ACCEPTED_EXTENSIONS, MAX_FILE_LABEL } from "@/config/upload";
 
@@ -63,8 +73,10 @@ export function LandingScreen() {
   const chars = brief.trim().length;
   const canGenerate = (!!fileName && !parsing) || chars >= 20;
 
-  const shape = DECK_SHAPE_OPTIONS.find((o) => o.id === deckShape) ?? DECK_SHAPE_OPTIONS[0];
-  const depthOption = DEPTH_OPTIONS.find((o) => o.id === depth) ?? DEPTH_OPTIONS[1];
+  const shape =
+    DECK_SHAPE_OPTIONS.find((o) => o.id === deckShape) ?? DECK_SHAPE_OPTIONS[0];
+  const depthOption =
+    DEPTH_OPTIONS.find((o) => o.id === depth) ?? DEPTH_OPTIONS[1];
   const slideCount = shape.sections.length;
   const readMinutes = estimateReadMinutes(deckShape, depth);
 
@@ -92,7 +104,7 @@ export function LandingScreen() {
       <div
         className={cn(
           "flex w-full max-w-180 flex-col items-center text-center transition-[padding-top] duration-500 ease-out",
-          started ? "pt-8" : "pt-[12vh]"
+          started ? "pt-8" : "pt-[12vh]",
         )}
       >
         <span className="font-mono text-[11px] tracking-[0.14em] text-detail uppercase">
@@ -101,26 +113,36 @@ export function LandingScreen() {
         <div
           className={cn(
             "font-display font-semibold text-foreground transition-all duration-500 ease-out",
-            started ? "mt-3 text-[32px] leading-none" : "mt-4.5 text-[46px] leading-none"
+            started
+              ? "mt-3 text-[32px] leading-none"
+              : "mt-4.5 text-[46px] leading-none",
           )}
         >
           Turn a brief into a pitch-ready deck.
         </div>
-        <div className="mt-3.5 max-w-140 text-[16px] leading-[1.6] text-detail text-wrap-pretty">
-          Hand it the client brief. It drafts the whole proposal — understanding, options,
-          solution, methodology, team and commercials — then edits any slide from a plain-English
-          instruction.
+        <div className="mt-3.5 flex max-w-140 flex-col items-center gap-2.5 text-[16px] leading-[1.6] text-detail text-wrap-pretty">
+          <span>Hand over the client brief, get back a complete proposal, ready to pitch.</span>
+          <span className="flex flex-wrap items-center justify-center gap-1.5">
+            {["Understanding", "Options", "Solution", "Methodology", "Team", "Commercials"].map(
+              (t) => (
+                <Badge key={t} variant="outline" className="font-mono text-[11px] font-semibold text-detail">
+                  {t}
+                </Badge>
+              )
+            )}
+          </span>
+          <span>Then revise any slide with a plain written note.</span>
         </div>
 
         {!started ? (
           <div
             className={cn(
               "flex w-full flex-col items-center transition-opacity duration-250 ease-out",
-              leaving ? "opacity-0" : "opacity-100"
+              leaving ? "opacity-0" : "opacity-100",
             )}
           >
             <div className="mt-6.5 flex items-center gap-2.5 font-mono text-[11.5px] text-detail">
-              <span>16:9 deck · up to 20 slides</span>
+              <span>16:9 deck · up to 10+ slides</span>
               <span className="size-1 rounded-full bg-border" />
               <span>PowerPoint or PDF</span>
               <span className="size-1 rounded-full bg-border" />
@@ -155,7 +177,9 @@ export function LandingScreen() {
                       <span
                         className={cn(
                           "mt-auto h-1 w-[34%] rounded-full",
-                          s.kind === "commercial" ? "bg-accent" : "bg-[#C9B385]"
+                          s.kind === "commercial"
+                            ? "bg-accent"
+                            : "bg-[#C9B385]",
                         )}
                       />
                     </div>
@@ -163,7 +187,7 @@ export function LandingScreen() {
                 </div>
               </div>
               <div className="mt-3.5 text-center font-mono text-[11px] text-detail">
-                  Powered by Antrhopics Claude
+                Powered by Antrhopics Claude
               </div>
             </div>
           </div>
@@ -185,13 +209,18 @@ export function LandingScreen() {
                   01 · The input
                 </span>
                 <span className="font-mono text-[10.5px] text-detail">
-                  {fileName ? "document attached" : chars >= 20 ? "brief typed" : "waiting"}
+                  {fileName
+                    ? "document attached"
+                    : chars >= 20
+                      ? "brief typed"
+                      : "waiting"}
                 </span>
               </div>
 
               <div className="flex flex-col gap-2">
                 <Label htmlFor="src-file">
-                  Source document <span className="font-normal text-detail">— optional</span>
+                  Source document{" "}
+                  <span className="font-normal text-detail">— optional</span>
                 </Label>
                 <input
                   ref={inputRef}
@@ -221,17 +250,22 @@ export function LandingScreen() {
                     "group flex min-h-19 cursor-pointer items-center gap-3 rounded-lg border border-dashed p-4 transition-all duration-150",
                     dragging
                       ? "scale-[1.01] border-accent bg-highlight/40"
-                      : "border-[#C9B385] bg-card hover:bg-highlight/25"
+                      : "border-[#C9B385] bg-card hover:bg-highlight/25",
                   )}
                 >
                   <span
                     className={cn(
                       "flex size-10 shrink-0 items-center justify-center rounded-lg border transition-colors",
-                      fileName ? "border-accent/30 bg-accent/10" : "border-border bg-card"
+                      fileName
+                        ? "border-accent/30 bg-accent/10"
+                        : "border-border bg-card",
                     )}
                   >
                     {fileName ? (
-                      <FileCheck2 className="size-4.5 text-accent" strokeWidth={1.8} />
+                      <FileCheck2
+                        className="size-4.5 text-accent"
+                        strokeWidth={1.8}
+                      />
                     ) : (
                       <Upload
                         className="size-4.5 text-foreground transition-transform duration-150 group-hover:-translate-y-0.5"
@@ -241,7 +275,11 @@ export function LandingScreen() {
                   </span>
                   <span className="flex min-w-0 flex-col gap-1">
                     <span className="truncate text-sm font-medium text-foreground">
-                      {fileName ? fileName : dragging ? "Drop to attach" : "Drop a document, or click to browse"}
+                      {fileName
+                        ? fileName
+                        : dragging
+                          ? "Drop to attach"
+                          : "Drop a document, or click to browse"}
                     </span>
                     {fileName ? (
                       <span className="font-mono text-[11.5px] text-detail">
@@ -250,11 +288,17 @@ export function LandingScreen() {
                     ) : (
                       <span className="flex flex-wrap gap-1">
                         {ACCEPTED_EXTENSIONS.map((ext) => (
-                          <Badge key={ext} variant="outline" className="font-mono text-[10px] text-detail">
+                          <Badge
+                            key={ext}
+                            variant="outline"
+                            className="font-mono text-[10px] text-detail"
+                          >
                             {ext}
                           </Badge>
                         ))}
-                        <span className="self-center font-mono text-[11px] text-detail">{MAX_FILE_LABEL}</span>
+                        <span className="self-center font-mono text-[11px] text-detail">
+                          {MAX_FILE_LABEL}
+                        </span>
                       </span>
                     )}
                   </span>
@@ -271,7 +315,9 @@ export function LandingScreen() {
                   className="h-33 resize-none bg-card text-[14px] leading-[1.55]"
                 />
                 <div className="flex items-center justify-end">
-                  <span className="font-mono text-[11.5px] text-detail">{chars} characters</span>
+                  <span className="font-mono text-[11.5px] text-detail">
+                    {chars} characters
+                  </span>
                 </div>
               </div>
             </CardContent>
@@ -283,7 +329,9 @@ export function LandingScreen() {
                 <span className="font-mono text-[10.5px] tracking-[0.09em] text-detail uppercase">
                   02 · Deck shape
                 </span>
-                <span className="font-mono text-[10.5px] text-detail">{shape.label.toLowerCase()}</span>
+                <span className="font-mono text-[10.5px] text-detail">
+                  {shape.label.toLowerCase()}
+                </span>
               </div>
 
               <div className="grid grid-cols-3 gap-2.5">
@@ -299,21 +347,27 @@ export function LandingScreen() {
                         "flex flex-col gap-1.5 rounded-lg border p-3 text-left transition-all duration-150",
                         on
                           ? "border-foreground bg-highlight/25 ring-2 ring-accent/30"
-                          : "border-border bg-card hover:border-accent/40"
+                          : "border-border bg-card hover:border-accent/40",
                       )}
                     >
                       <span className="flex items-center justify-between gap-1.5">
-                        <span className="text-[13.5px] font-semibold text-foreground">{opt.label}</span>
+                        <span className="text-[13.5px] font-semibold text-foreground">
+                          {opt.label}
+                        </span>
                         <span
                           className={cn(
                             "flex size-3.5 shrink-0 items-center justify-center rounded-full",
-                            on ? "bg-foreground text-background" : "bg-muted"
+                            on ? "bg-foreground text-background" : "bg-muted",
                           )}
                         >
-                          {on ? <Check className="size-2.5" strokeWidth={3} /> : null}
+                          {on ? (
+                            <Check className="size-2.5" strokeWidth={3} />
+                          ) : null}
                         </span>
                       </span>
-                      <span className="font-mono text-[10.5px] text-detail">{opt.sections.length} slides</span>
+                      <span className="font-mono text-[10.5px] text-detail">
+                        {opt.sections.length} slides
+                      </span>
                       <span className="text-[11.5px] leading-[1.45] text-detail text-wrap-pretty">
                         {opt.description}
                       </span>
@@ -339,7 +393,9 @@ export function LandingScreen() {
                         onClick={() => setDepth(opt.id)}
                         className={cn(
                           "h-8 flex-1 rounded-md text-[12.5px] transition-colors duration-150",
-                          on ? "bg-accent font-semibold text-accent-foreground" : "text-body hover:bg-highlight/30"
+                          on
+                            ? "bg-accent font-semibold text-accent-foreground"
+                            : "text-body hover:bg-highlight/30",
                         )}
                       >
                         {opt.label}
@@ -353,36 +409,43 @@ export function LandingScreen() {
 
           <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl bg-foreground px-5 py-4">
             <div className="flex min-w-0 flex-col gap-1">
-              <span className="text-[14.5px] font-semibold text-background">
-                {shape.label} · {slideCount} slides · {depthOption.label.toLowerCase()}
+              <span className="text-[14px] font-semibold text-background">
+                {shape.label} · {slideCount} slides ·{" "}
+                {depthOption.label.toLowerCase()}
               </span>
               <span className="font-mono text-[11px] text-background/60">
                 {canGenerate
                   ? "Ready · Sonnet-drafted, editable slide by slide"
-                  : "Attach a document or type 20+ characters to enable Generate"}
+                  : "Attach a document or type 20+ characters"}
               </span>
             </div>
             <div className="flex items-center gap-3">
-              <Select value={model} onValueChange={(v) => v && setModel(v)}>
-                <SelectTrigger
+              <DropdownMenu>
+                <DropdownMenuTrigger
                   id="model-landing"
-                  className="h-11 min-w-37.5 border-background/25 bg-transparent text-background hover:bg-background/10 [&_svg]:text-background/70"
+                  className="flex h-11 min-w-32 items-center justify-between gap-1.5 rounded-lg border border-background/25 bg-transparent px-2.5 text-sm text-background hover:bg-background/10 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-background/70"
                 >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {MODEL_OPTIONS.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>
-                      {o.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                  {MODEL_LABEL[model] ?? model}
+                  <ChevronDownIcon />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuRadioGroup
+                    value={model}
+                    onValueChange={(v) => v && setModel(v)}
+                  >
+                    {MODEL_OPTIONS.map((o) => (
+                      <DropdownMenuRadioItem key={o.value} value={o.value}>
+                        {o.label}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button
                 size="lg"
                 disabled={!canGenerate}
                 onClick={() => void generate()}
-                className="group h-11 gap-2 bg-background px-6 text-[14.5px] text-foreground hover:bg-background/90"
+                className="group h-11 gap-2 bg-background px-6 text-[14px] text-foreground hover:bg-background/90"
               >
                 Generate deck
                 <ArrowRight className="size-4 transition-transform duration-150 group-hover:translate-x-0.5" />
@@ -392,7 +455,7 @@ export function LandingScreen() {
         </div>
       ) : null}
       <div className="mt-3.5 text-center font-mono text-[11px] text-detail">
-          Made by Josh Perry
+        Made by Josh Perry
       </div>
     </div>
   );

@@ -92,11 +92,19 @@ export async function runGenerationPipeline(
     generateStructured({
       model,
       schema: ProjectUnderstandingOutput,
+      maxTokens: 3072,
+      effort: "medium",
+      label: "gen:understanding",
       ...projectUnderstandingPrompt(brief, fileText, config, depth),
     }),
     generateStructured({
       model,
       schema: OptionAnalysisOutput,
+      // Six criteria × three options of prose, plus thinking, is the
+      // largest single completion in the pipeline after the value chain.
+      maxTokens: 4096,
+      effort: "medium",
+      label: "gen:options",
       ...optionAnalysisPrompt(brief, fileText, config, depth),
     }),
   ]);
@@ -106,6 +114,9 @@ export async function runGenerationPipeline(
   const solutionProposal = await generateStructured({
     model,
     schema: SolutionProposalOutput,
+    maxTokens: 3072,
+    effort: "medium",
+    label: "gen:solution",
     ...solutionProposalPrompt(brief, fileText, config, understanding, optionAnalysis, depth),
   });
 
@@ -128,11 +139,18 @@ export async function runGenerationPipeline(
     generateStructured({
       model,
       schema: ValueChainOutput,
+      // Five populated cells per row across up to five rows.
+      maxTokens: 6144,
+      effort: "medium",
+      label: "gen:value-chain",
       ...valueChainPrompt(brief, selectedNames, depth),
     }),
     generateStructured({
       model,
       schema: ExecutionMethodologyOutput,
+      maxTokens: 3072,
+      effort: "medium",
+      label: "gen:execution",
       ...executionMethodologyPrompt(brief, config, selectedNames, depth),
     }),
   ]);
@@ -145,6 +163,12 @@ export async function runGenerationPipeline(
     ? await generateStructured({
         model,
         schema: ExecutiveSummaryOutput,
+        maxTokens: 4096,
+        // The one slide worth thinking harder about: it is generated last,
+        // from every other section's output, and is the slide a client
+        // actually reads.
+        effort: "high",
+        label: "gen:exec-summary",
         ...executiveSummaryPrompt({
           brief,
           clientName: understanding.clientName,

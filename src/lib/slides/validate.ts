@@ -90,6 +90,11 @@ function textsOf(s: Slide): string[] {
       for (const r of s.rows) out.push(r.item, r.description, r.cost);
       for (const pt of s.paymentTerms ?? []) out.push(pt.milestone);
       break;
+    // An empty slide carries no deck copy — only the user's own note, which
+    // is a UI affordance rather than something that ships. Linting it would
+    // flag the placeholder for being a placeholder (V17).
+    case "placeholder":
+      break;
   }
   return out.filter(Boolean);
 }

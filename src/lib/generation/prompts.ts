@@ -1,5 +1,7 @@
 import type { ProposalConfig } from "@/config/types";
 import type { DepthId } from "@/config/deck-shapes";
+import type { NewSlideKind, SlideKind } from "@/lib/slides/schema";
+import type { SlideOutlineEntry } from "@/lib/api-types";
 import type { ProjectUnderstandingOutput, SolutionProposalOutput, OptionAnalysisOutput } from "./schemas";
 
 // Trivial relative to a 200k-token model context window, but large enough
@@ -19,7 +21,7 @@ function moduleList(config: ProposalConfig): string {
   return config.modules.map((m) => `- ${m.key}: ${m.name} — ${m.description}`).join("\n");
 }
 
-const COMMON_RULES = `Write for a client-facing consulting proposal deck: direct, concrete, no filler adjectives, no exclamation marks. Keep every field short enough to read at a glance on a 16:9 slide. Never invent a specific price or currency figure — pricing is computed separately from a rate card.`;
+export const COMMON_RULES = `Write for a client-facing consulting proposal deck: direct, concrete, no filler adjectives, no exclamation marks. Keep every field short enough to read at a glance on a 16:9 slide. Never invent a specific price or currency figure — pricing is computed separately from a rate card.`;
 
 /**
  * The house title grammar (deck-system spec §2). This is the single most
@@ -32,7 +34,7 @@ const COMMON_RULES = `Write for a client-facing consulting proposal deck: direct
  * closed enum — the model physically cannot return an invalid one, which is
  * cheaper and more reliable than asking politely.
  */
-const ASSERTION_RULES = `TITLE GRAMMAR — follow exactly.
+export const ASSERTION_RULES = `TITLE GRAMMAR — follow exactly.
 Every slide carries a two-line title: a sectionLabel (pick from the allowed list) and an "assertion".
 
 The assertion is the slide's conclusion, not its topic. Rules:
@@ -206,4 +208,118 @@ Produce:
   - "Execution plan": the phases and the total duration (${params.totalWeeks}).
   - "Investment": must state the total investment figure exactly as given above, plus what is and isn't included.`,
   };
+}
+
+// ---- Single-slide editing -------------------------------------------------
+// Both paths below live here rather than in the route so the house title
+// grammar has exactly one definition. It used to be restated by hand in
+// api/edit, which meant two copies of the most style-critical block in the
+// product, free to drift apart.
+
+/** One line per layout, written for the model that has to choose between
+ * them. Phrased as "reach for this when…" rather than "this renders…" —
+ * the picker needs the selection criterion, not the geometry. */
+const LAYOUT_BRIEFS: Record<NewSlideKind, string> = {
+  bullets: "a stack of 2-6 labelled points — findings, pain points, scope items, principles. The default when the content is a list of things with short explanations.",
+  summary: "a 4-5 row executive summary, each row a labelled category with 2-4 bullets. Only for whole-proposal recaps.",
+  comparison: "an option matrix: 3-6 criteria down the side, 2-3 options across the top, exactly one recommended. Use when the slide's job is to choose between alternatives.",
+  table: "a feature detail table — rows of feature / description / details / action support. Use for module or capability specification.",
+  valueChain: "a five-column feature→task→output→outcome→benefit chain. Use only when the slide must justify scope in business-value terms.",
+  timeline: "a 3-5 phase ribbon with durations and per-phase detail. Use for plans, roadmaps, rollout sequences.",
+  team: "a grid of 2-6 named people with roles and one-line bios.",
+  divider: "a chapter break carrying only a section name. Use when the instruction asks for a section break or a title-only slide.",
+};
+
+/**
+ * Step 1 of filling an empty slide: pick the layout.
+ *
+ * Split from content generation on purpose. The alternative — one call whose
+ * tool schema is a union of all ten content shapes — makes the model choose
+ * a branch and populate it in a single shot, and the failure mode is a
+ * half-populated shape from the wrong branch. Choosing first means step 2
+ * runs against exactly the same single-kind schema as a normal edit, so a
+ * new slide and an edited slide share one validated code path.
+ */
+export function slideKindPrompt(instruction: string, outline: SlideOutlineEntry[], position: number) {
+  return {
+    system: `You select the layout for one new slide in a client-facing technology-consulting proposal deck. Choose the layout that fits the requested content — not the one that is most impressive. When the instruction is vague, prefer "bullets": it is the most forgiving layout and reads well with almost any content.`,
+    prompt: `Available layouts:
+${(Object.keys(LAYOUT_BRIEFS) as NewSlideKind[]).map((k) => `- ${k}: ${LAYOUT_BRIEFS[k]}`).join("\n")}
+
+${outlineBlock(outline)}
+
+The new slide sits at position ${position} in that deck.
+
+The user asked for: "${instruction}"
+
+Return:
+- kind: the layout id
+- plan: one sentence, max 25 words, saying what this specific slide will assert. This is handed to the writer, so name the actual content — not "a bullets slide about the timeline".`,
+  };
+}
+
+/** Step 2 of filling an empty slide: write the content for the chosen kind. */
+export function newSlidePrompt(params: {
+  kind: SlideKind;
+  instruction: string;
+  plan: string;
+  outline: SlideOutlineEntry[];
+  position: number;
+}) {
+  const titled = params.kind !== "divider" && params.kind !== "title";
+  return {
+    system: `You are writing ONE new slide for a client-facing technology-consulting proposal deck, using the "${params.kind}" layout. ${COMMON_RULES}
+
+The deck already exists — this slide has to sound like it was drafted with the rest, not bolted on. Do not restate what a neighbouring slide already says.${titled ? `\n\n${ASSERTION_RULES}` : ""}`,
+    prompt: `${outlineBlock(params.outline)}
+
+You are writing the slide at position ${params.position}.
+
+The user asked for: "${params.instruction}"
+Editorial plan for this slide: ${params.plan}
+
+Fill every field the schema requires. Where the user's instruction doesn't supply a detail, infer it from the surrounding deck rather than leaving a placeholder — never emit "TBD", "XXX", or bracketed blanks.${
+      titled
+        ? `\n\nPick the sectionLabel that names this slide's job in the argument, not the neighbouring slide's — a slide that weighs options belongs under option analysis even if it sits next to discovery slides.`
+        : ""
+    }`,
+  };
+}
+
+/** Revising an existing slide: same grammar, but the shape is already fixed. */
+export function editSlidePrompt(params: {
+  kind: SlideKind;
+  content: unknown;
+  instruction: string;
+  outline: SlideOutlineEntry[];
+  position: number;
+}) {
+  const titled = "assertion" in (params.content as Record<string, unknown>);
+  return {
+    system: `You are revising ONE slide of a client-facing technology-consulting proposal deck. The slide's kind is "${params.kind}" and its field structure must stay identical — same keys, same shapes, same array lengths where the schema requires them. Only change what the instruction asks; keep everything else faithful to the original. ${COMMON_RULES}${titled ? `\n\n${ASSERTION_RULES}\n\nIf your edit changes the underlying numbers, update the assertion to match rather than leaving a headline that contradicts the body.` : ""}`,
+    prompt: `${outlineBlock(params.outline)}
+
+You are revising the slide at position ${params.position}. Its current content:
+${JSON.stringify(params.content)}
+
+Instruction: "${params.instruction}"
+
+Return the complete revised slide content in the same shape.`,
+  };
+}
+
+/**
+ * A compact map of the deck — one line per slide, titles only.
+ *
+ * This is what lets an edit stay consistent with slides the model never
+ * sees, and it costs ~15 tokens per slide instead of the ~400 a full slide
+ * body would. The client sends only this plus the slides actually being
+ * edited, rather than the whole deck on every keystroke-sized instruction.
+ */
+function outlineBlock(outline: SlideOutlineEntry[]): string {
+  if (!outline.length) return "DECK OUTLINE: (this is the only slide.)";
+  const lines = outline.map(
+    (s) => `${s.index}. [${s.kind}] ${s.assertion ?? s.title ?? "—"}`
+  );
+  return `DECK OUTLINE (for context — do not edit these):\n${lines.join("\n")}`;
 }

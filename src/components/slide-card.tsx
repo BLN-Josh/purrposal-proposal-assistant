@@ -1,5 +1,6 @@
 "use client";
 
+import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Slide } from "@/lib/slides/schema";
 import { SlideRenderer } from "@/components/slides/slide-renderer";
@@ -11,6 +12,7 @@ interface SlideCardProps {
   flashing: boolean;
   errored: boolean;
   onSelect: () => void;
+  onRemove: () => void;
 }
 
 /** One slide in the preview grid — the "tabbed dossier edge" signature
@@ -24,10 +26,24 @@ interface SlideCardProps {
  * non-white fill here would print behind every exported page — this is
  * where a cream `bg-card` used to leak the editor's warm palette into the
  * deck. Do not put an editor-shell token on it.
+ *
+ * An empty slide deliberately omits `data-slide-surface`: that attribute is
+ * the PDF exporter's selector, so leaving it off is what keeps a draft out
+ * of the printed deck. Same rule as build-pptx skipping the kind.
  */
-export function SlideCard({ slide, index, selected, flashing, errored, onSelect }: SlideCardProps) {
+export function SlideCard({
+  slide,
+  index,
+  selected,
+  flashing,
+  errored,
+  onSelect,
+  onRemove,
+}: SlideCardProps) {
+  const draft = slide.kind === "placeholder";
+
   return (
-    <div className="group relative">
+    <div id={`slide-${slide.id}`} className="group relative scroll-mt-6">
       <div
         role="button"
         tabIndex={0}
@@ -43,10 +59,16 @@ export function SlideCard({ slide, index, selected, flashing, errored, onSelect 
           "flex cursor-pointer overflow-hidden rounded-xl border bg-slide shadow-soft transition-all duration-150 ease-out",
           "hover:-translate-y-0.5 hover:shadow-soft-lg",
           "focus-visible:ring-3 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none",
+          draft && "border-dashed",
           selected ? "border-brand-1/50" : "border-slide-line/60 hover:border-brand-1/30"
         )}
       >
-        <div className="flex w-10 shrink-0 flex-col items-center gap-1.75 bg-brand-1 pt-3">
+        <div
+          className={cn(
+            "flex w-10 shrink-0 flex-col items-center gap-1.75 pt-3",
+            draft ? "bg-brand-1/45" : "bg-brand-1"
+          )}
+        >
           <span className="font-mono text-[12.5px] font-medium text-white">
             {String(index + 1).padStart(2, "0")}
           </span>
@@ -56,16 +78,39 @@ export function SlideCard({ slide, index, selected, flashing, errored, onSelect 
           ) : null}
         </div>
 
-        <div
-          data-slide-surface={slide.id}
-          className="@container relative aspect-video min-w-0 flex-1 overflow-hidden bg-slide"
-        >
-          <SlideRenderer slide={slide} page={index + 1} />
-          {flashing ? (
-            <div className="animate-flash-in pointer-events-none absolute inset-0 bg-brand-1/25" />
-          ) : null}
-        </div>
+        {draft ? (
+          <div className="@container relative aspect-video min-w-0 flex-1 overflow-hidden bg-slide">
+            <SlideRenderer slide={slide} page={index + 1} />
+          </div>
+        ) : (
+          <div
+            data-slide-surface={slide.id}
+            className="@container relative aspect-video min-w-0 flex-1 overflow-hidden bg-slide"
+          >
+            <SlideRenderer slide={slide} page={index + 1} />
+            {flashing ? (
+              <div className="animate-flash-in pointer-events-none absolute inset-0 bg-brand-1/25" />
+            ) : null}
+          </div>
+        )}
       </div>
+
+      {/* Removal is a card-level action, so it hangs off the card's corner
+          rather than sitting inside the slide surface — nothing that isn't
+          part of the deck may render inside `data-slide-surface`, or it
+          would be captured into the exported PDF. */}
+      <button
+        type="button"
+        aria-label={`Remove slide ${index + 1}`}
+        title="Remove this slide"
+        onClick={(e) => {
+          e.stopPropagation();
+          onRemove();
+        }}
+        className="absolute -top-2 -right-2 z-20 flex size-6.5 cursor-pointer items-center justify-center rounded-full border border-border bg-card text-detail opacity-0 shadow-soft transition-all duration-150 ease-out group-focus-within:opacity-100 group-hover:opacity-100 hover:scale-110 hover:border-destructive hover:bg-destructive hover:text-white focus-visible:opacity-100 focus-visible:ring-3 focus-visible:ring-ring focus-visible:outline-none"
+      >
+        <X className="size-3.25" />
+      </button>
 
       {selected ? (
         <div className="animate-ring-in pointer-events-none absolute -inset-1 rounded-xl border-[3px] border-card-foreground transition-colors duration-150" />

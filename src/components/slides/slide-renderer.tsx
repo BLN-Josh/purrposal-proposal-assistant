@@ -9,6 +9,7 @@ import { ValueChainSlideBody } from "./value-chain-slide";
 import { TimelineSlideBody } from "./timeline-slide";
 import { TeamSlideBody } from "./team-slide";
 import { CommercialSlideBody } from "./commercial-slide";
+import { PlaceholderSlideBody } from "./placeholder-slide";
 import { SlideFurniture } from "./slide-primitives";
 
 /** One component per `kind`, one per spec layout id (see LAYOUT_BY_KIND) —
@@ -37,6 +38,8 @@ function SlideBodyFor({ slide }: { slide: Slide }) {
       return <TeamSlideBody slide={slide} />;
     case "commercial":
       return <CommercialSlideBody slide={slide} />;
+    case "placeholder":
+      return <PlaceholderSlideBody slide={slide} />;
     default: {
       const _exhaustive: never = slide;
       void _exhaustive;
@@ -61,6 +64,10 @@ function SlideBodyFor({ slide }: { slide: Slide }) {
 export function SlideRenderer({ slide, page }: { slide: Slide; page?: number }) {
   const isCover = slide.kind === "title";
   const tone = slide.kind === "team" && slide.variant === "dark" ? "dark" : "light";
+
+  // An empty slide is a draft, not a page — furniture would assert it is a
+  // finished, confidential deliverable, which is exactly what it isn't.
+  if (slide.kind === "placeholder") return <SlideBodyFor slide={slide} />;
 
   return (
     <>

@@ -294,6 +294,23 @@ const SlideEnvelope = z.object({
  * required to. Applied per-kind below rather than on the shared envelope. */
 const titled = { sectionLabel: SectionLabelSchema, assertion: z.string() };
 
+/**
+ * A user-inserted empty slide, awaiting its first instruction.
+ *
+ * Deliberately *not* a member of SLIDE_KINDS: it maps to no spec layout, it
+ * never exports, and it exists only between "user clicked +" and "the model
+ * decided what this slide should be". The first edit replaces it wholesale
+ * with one of the real kinds — see NEW_SLIDE_KINDS below for which ones the
+ * model may choose. Keeping it out of SLIDE_KINDS means LAYOUT_BY_KIND,
+ * CONTENT_SCHEMA_BY_KIND and editSchemaFor all stay honest about covering
+ * only real layouts.
+ */
+export const PlaceholderContent = z.object({
+  /** Free-text note the user typed while creating it, shown on the card. */
+  hint: z.string().optional(),
+});
+export type PlaceholderContent = z.infer<typeof PlaceholderContent>;
+
 export const TitleSlide = SlideEnvelope.extend({ kind: z.literal("title") }).extend(TitleContent.shape);
 export const DividerSlide = SlideEnvelope.extend({ kind: z.literal("divider") }).extend(DividerContent.shape);
 export const SummarySlide = SlideEnvelope.extend({ kind: z.literal("summary"), ...titled }).extend(SummaryContent.shape);
@@ -304,6 +321,7 @@ export const ValueChainSlide = SlideEnvelope.extend({ kind: z.literal("valueChai
 export const TimelineSlide = SlideEnvelope.extend({ kind: z.literal("timeline"), ...titled }).extend(TimelineContent.shape);
 export const TeamSlide = SlideEnvelope.extend({ kind: z.literal("team"), ...titled }).extend(TeamContent.shape);
 export const CommercialSlide = SlideEnvelope.extend({ kind: z.literal("commercial"), ...titled }).extend(CommercialContent.shape);
+export const PlaceholderSlide = SlideEnvelope.extend({ kind: z.literal("placeholder") }).extend(PlaceholderContent.shape);
 
 export const Slide = z.discriminatedUnion("kind", [
   TitleSlide,
@@ -316,6 +334,7 @@ export const Slide = z.discriminatedUnion("kind", [
   TimelineSlide,
   TeamSlide,
   CommercialSlide,
+  PlaceholderSlide,
 ]);
 
 export type Slide = z.infer<typeof Slide>;
@@ -329,6 +348,44 @@ export type ValueChainSlide = z.infer<typeof ValueChainSlide>;
 export type TimelineSlide = z.infer<typeof TimelineSlide>;
 export type TeamSlide = z.infer<typeof TeamSlide>;
 export type CommercialSlide = z.infer<typeof CommercialSlide>;
+export type PlaceholderSlide = z.infer<typeof PlaceholderSlide>;
+
+/**
+ * The layouts the model may choose when filling an empty slide.
+ *
+ * Two exclusions, both structural rather than stylistic: `title` is the
+ * cover and a deck has exactly one, and `commercial` is computed from the
+ * rate card (FR-3.4 / NFR-2) — letting a completion invent a totals table
+ * would put fabricated money on a client-facing page.
+ */
+export const NEW_SLIDE_KINDS = [
+  "divider",
+  "summary",
+  "bullets",
+  "comparison",
+  "table",
+  "valueChain",
+  "timeline",
+  "team",
+] as const satisfies readonly SlideKind[];
+
+export type NewSlideKind = (typeof NEW_SLIDE_KINDS)[number];
+export const NewSlideKindSchema = z.enum(NEW_SLIDE_KINDS);
+
+/** Human label for a kind, for toasts and the edit log. */
+export const KIND_LABEL: Record<SlideKind | "placeholder", string> = {
+  title: "cover",
+  divider: "section divider",
+  summary: "executive summary",
+  bullets: "row stack",
+  comparison: "option matrix",
+  table: "feature table",
+  valueChain: "value chain",
+  timeline: "phase timeline",
+  team: "team grid",
+  commercial: "commercial terms",
+  placeholder: "empty slide",
+};
 
 /** Deck-level theme overrides travel with the deck so an export reproduces
  * exactly what the editor previewed. Mirrors DeckThemeOverrides in

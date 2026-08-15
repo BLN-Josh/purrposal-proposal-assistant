@@ -3,7 +3,7 @@
 import { create } from "zustand";
 import { toast } from "sonner";
 import type { Slide, DeckTheme } from "@/lib/slides/schema";
-import { parseFile, streamGenerate, postEdit, fetchExportPptx } from "@/lib/api-client";
+import { parseFile, streamGenerate, postEdit, fetchExportPptx, deckOutline } from "@/lib/api-client";
 import { downloadBlob, slugify } from "@/lib/download";
 import { DEFAULT_EDIT_MODEL, DEFAULT_GENERATE_MODEL } from "@/lib/models";
 import { ACCEPTED_EXTENSIONS, MAX_FILE_BYTES, MAX_FILE_LABEL, UNSUPPORTED_FILE_MESSAGE } from "@/config/upload";
@@ -63,6 +63,10 @@ interface AppState {
   flash: string[];
   menu: boolean;
   exporting: "pptx" | "pdf" | null;
+  /** Bumped whenever a new empty slide is inserted. The workspace watches it
+   * to scroll the card into view and drop the caret in the composer, so the
+   * next thing the user does after clicking + is type. */
+  composerCue: number;
 
   start: () => void;
   setModel: (model: string) => void;
@@ -80,6 +84,9 @@ interface AppState {
   clearSelection: () => void;
   setDraft: (draft: string) => void;
   send: () => Promise<void>;
+  /** Insert an empty slide before position `index` (0 = top of deck). */
+  addSlideAt: (index: number) => void;
+  removeSlide: (id: string) => void;
 
   setMenu: (open: boolean) => void;
   setExporting: (kind: "pptx" | "pdf" | null) => void;
@@ -114,6 +121,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   flash: [],
   menu: false,
   exporting: null,
+  composerCue: 0,
 
   start: () => set({ started: true }),
   setModel: (model) => set({ model }),
@@ -232,12 +240,21 @@ export const useAppStore = create<AppState>((set, get) => ({
     const { draft, busy, screen, sel, slides, model } = get();
     const instruction = draft.trim();
     if (!instruction || busy || screen !== "workspace") return;
-    const targets = sel.length ? sel : slides.map((s) => s.id);
+    // Send only the slides being edited plus a titles-only deck map: a
+    // one-slide edit used to ship the entire deck's JSON on every request.
+    const targetSlides = sel.length ? slides.filter((s) => sel.includes(s.id)) : slides;
+    if (!targetSlides.length) return;
+    const targets = targetSlides.map((s) => s.id);
     const scope = labelFor(sel, slides);
     set({ busy: true, errIds: [] });
 
     try {
-      const res = await postEdit({ slideIds: targets, instruction, model, slides });
+      const res = await postEdit({
+        instruction,
+        model,
+        slides: targetSlides,
+        outline: deckOutline(slides),
+      });
       const failed = res.results.filter((r) => r.error);
       if (failed.length) {
         set({ busy: false, errIds: failed.map((r) => r.id) });
@@ -289,23 +306,94 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
+  addSlideAt: (index) => {
+    const id = crypto.randomUUID();
+    set((s) => {
+      const slides = [...s.slides];
+      slides.splice(Math.max(0, Math.min(index, slides.length)), 0, { id, kind: "placeholder" });
+      // Force single-select: the new slide is the one thing the next
+      // instruction should apply to, and inheriting a multi-selection here
+      // would silently rewrite unrelated slides.
+      return { slides, sel: [id], multi: false, errIds: [], composerCue: s.composerCue + 1 };
+    });
+  },
+
+  /**
+   * Drop a slide from the deck.
+   *
+   * There is no separate "deleted" state to filter downstream: the slide
+   * leaves `slides`, which is the single source for the edit payload, the
+   * deck outline, the PPTX request and the PDF capture alike. Removing it
+   * here removes it everywhere by construction.
+   *
+   * The undo lives in the toast rather than behind a confirm dialog. A
+   * generated slide costs a model call and a paragraph of someone's
+   * thinking, and this button is one hover away from every card — a misclick
+   * has to be recoverable, but not at the price of a modal on every delete.
+   */
+  removeSlide: (id) => {
+    const { slides } = get();
+    const index = slides.findIndex((s) => s.id === id);
+    if (index === -1) return;
+    const removed = slides[index];
+
+    set((s) => ({
+      slides: s.slides.filter((x) => x.id !== id),
+      sel: s.sel.filter((x) => x !== id),
+      errIds: s.errIds.filter((x) => x !== id),
+      flash: s.flash.filter((x) => x !== id),
+    }));
+
+    const remaining = get().slides.length;
+    toast(`${removed.kind === "placeholder" ? "Empty slide" : `Slide ${index + 1}`} removed`, {
+      description: remaining
+        ? `${remaining} slide${remaining === 1 ? "" : "s"} left in the deck.`
+        : "The deck is empty.",
+      action: {
+        label: "Undo",
+        onClick: () =>
+          set((s) => {
+            // The toast outlives the click, so guard against a second undo
+            // putting a duplicate id into the deck.
+            if (s.slides.some((x) => x.id === removed.id)) return {};
+            const next = [...s.slides];
+            next.splice(Math.min(index, next.length), 0, removed);
+            return { slides: next, sel: [removed.id] };
+          }),
+      },
+    });
+  },
+
   setMenu: (open) => set({ menu: open }),
   setExporting: (kind) => set({ exporting: kind }),
 
   exportPptx: async () => {
     const { exporting, slides, deckTitle } = get();
     if (exporting) return;
+
+    // An empty slide has no layout to render, so it is dropped rather than
+    // exported blank — and the toast says so, because silently shipping a
+    // deck one slide short of what's on screen is worse than either.
+    const exportable = slides.filter((s) => s.kind !== "placeholder");
+    const skipped = slides.length - exportable.length;
+    if (!exportable.length) {
+      toast.error("Nothing to export yet", {
+        description: "Describe your empty slides first — an empty slide has no layout to export.",
+      });
+      return;
+    }
     set({ exporting: "pptx" });
 
     const filename = `${slugify(deckTitle || "proposal")}.pptx`;
-    const job = fetchExportPptx(slides, deckTitle || "Proposal", get().deckTheme).then((blob) => {
+    const job = fetchExportPptx(exportable, deckTitle || "Proposal", get().deckTheme).then((blob) => {
       downloadBlob(blob, filename);
       return filename;
     });
 
     toast.promise(job, {
       loading: "Exporting PowerPoint…",
-      success: (name) => `${name} · ${slides.length} slides`,
+      success: (name) =>
+        `${name} · ${exportable.length} slides${skipped ? ` · ${skipped} empty slide${skipped === 1 ? "" : "s"} skipped` : ""}`,
       error: (e) => (e instanceof Error ? e.message : "Export failed. Try again."),
     });
 

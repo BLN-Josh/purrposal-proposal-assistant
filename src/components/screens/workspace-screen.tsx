@@ -1,7 +1,16 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { ChevronDown, FileText, FileType2, History, Loader2, MessageSquarePlus, X } from "lucide-react";
+import { Fragment, useEffect, useRef, useState } from "react";
+import {
+  ChevronDown,
+  FileText,
+  FileType2,
+  History,
+  Loader2,
+  MessageSquarePlus,
+  Plus,
+  X,
+} from "lucide-react";
 import { useAppStore, labelFor } from "@/store/app-store";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -22,6 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { SlideCard } from "@/components/slide-card";
+import { AddSlideButton } from "@/components/add-slide-button";
 import { MODEL_OPTIONS, MODEL_LABEL } from "@/lib/models";
 import { exportSlidesToPdf } from "@/lib/export-pdf";
 import { slugify } from "@/lib/download";
@@ -30,6 +40,7 @@ import { toast } from "sonner";
 
 export function WorkspaceScreen() {
   const gridRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
 
   const deckTitle = useAppStore((s) => s.deckTitle);
   const fileName = useAppStore((s) => s.fileName);
@@ -45,6 +56,9 @@ export function WorkspaceScreen() {
   const clearSelection = useAppStore((s) => s.clearSelection);
   const errIds = useAppStore((s) => s.errIds);
   const flash = useAppStore((s) => s.flash);
+  const addSlideAt = useAppStore((s) => s.addSlideAt);
+  const removeSlide = useAppStore((s) => s.removeSlide);
+  const composerCue = useAppStore((s) => s.composerCue);
 
   const draft = useAppStore((s) => s.draft);
   const setDraft = useAppStore((s) => s.setDraft);
@@ -61,9 +75,34 @@ export function WorkspaceScreen() {
   const [pdfBusy, setPdfBusy] = useState(false);
 
   const selectionLabel = labelFor(sel, slides);
+  const draftCount = slides.filter((s) => s.kind === "placeholder").length;
+  const selectedIsDraft = slides.some((s) => sel.includes(s.id) && s.kind === "placeholder");
+
+  // Adding an empty slide is only half the interaction — the other half is
+  // saying what goes on it. Bring the new card into view and put the caret
+  // in the composer so the user can just start typing.
+  useEffect(() => {
+    if (!composerCue) return;
+    const id = useAppStore.getState().sel[0];
+    if (id) {
+      document
+        .getElementById(`slide-${id}`)
+        ?.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
+    composerRef.current?.focus();
+  }, [composerCue]);
 
   async function handleExportPdf() {
     if (exporting) return;
+    // Empty slides carry no `data-slide-surface`, so the capture pass skips
+    // them on its own — this just keeps the count honest.
+    const pageCount = slides.length - draftCount;
+    if (!pageCount) {
+      toast.error("Nothing to export yet", {
+        description: "Describe your empty slides first — an empty slide has no layout to export.",
+      });
+      return;
+    }
     setExporting("pdf");
     setPdfBusy(true);
 
@@ -76,7 +115,8 @@ export function WorkspaceScreen() {
 
     toast.promise(job, {
       loading: "Rendering PDF…",
-      success: (name) => `${name} · ${slides.length} slides`,
+      success: (name) =>
+        `${name} · ${pageCount} slides${draftCount ? ` · ${draftCount} empty slide${draftCount === 1 ? "" : "s"} skipped` : ""}`,
       error: (e) => (e instanceof Error ? e.message : "Export failed. Try again."),
     });
 
@@ -181,6 +221,7 @@ export function WorkspaceScreen() {
             </label>
             <Textarea
               id="composer"
+              ref={composerRef}
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => {
@@ -189,13 +230,19 @@ export function WorkspaceScreen() {
                   void send();
                 }
               }}
-              placeholder="e.g. Cut this to 3 bullets · Change the timeline to 8 months · Add a row for API integration"
+              placeholder={
+                selectedIsDraft
+                  ? "Describe this new slide — e.g. Compare on-prem vs cloud hosting for the warehouse system"
+                  : "e.g. Cut this to 3 bullets · Change the timeline to 8 months · Add a row for API integration"
+              }
               className="h-22 resize-none bg-card text-[14px] leading-[1.55]"
             />
             <div className="flex items-center justify-between gap-3">
               <Select value={model} onValueChange={(v) => v && setModel(v)}>
                 <SelectTrigger id="model-ws" className="h-11 w-32.5">
-                  <SelectValue />
+                  {/* Without a render child the primitive prints the raw
+                      value — "claude-haiku-4-5" rather than "Haiku 4.5". */}
+                  <SelectValue>{(v) => MODEL_LABEL[v as string] ?? (v as string)}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {MODEL_OPTIONS.map((o) => (
@@ -234,6 +281,7 @@ export function WorkspaceScreen() {
               </div>
               <span className="font-mono text-[11.5px] text-detail">
                 {slides.length} slides · 16:9
+                {draftCount ? ` · ${draftCount} empty` : ""}
               </span>
             </div>
 
@@ -271,18 +319,49 @@ export function WorkspaceScreen() {
 
           <ScrollArea className="min-h-0 flex-1">
             <div className="px-6 py-6 pb-16">
-              <div ref={gridRef} className="mx-auto flex max-w-230 flex-col gap-5.5">
+              {/* gap-0 on purpose: the AddSlideButton rows *are* the gaps
+                  (h-5.5 each), so every space between two slides is a click
+                  target without the deck's rhythm changing. */}
+              <div ref={gridRef} className="mx-auto flex max-w-230 flex-col gap-0">
                 {slides.map((s, i) => (
-                  <SlideCard
-                    key={s.id}
-                    slide={s}
-                    index={i}
-                    selected={sel.includes(s.id)}
-                    flashing={flash.includes(s.id)}
-                    errored={errIds.includes(s.id)}
-                    onSelect={() => pick(s.id)}
-                  />
+                  <Fragment key={s.id}>
+                    <AddSlideButton
+                      onAdd={() => addSlideAt(i)}
+                      label={`Add a slide before slide ${i + 1}`}
+                    />
+                    <SlideCard
+                      slide={s}
+                      index={i}
+                      selected={sel.includes(s.id)}
+                      flashing={flash.includes(s.id)}
+                      errored={errIds.includes(s.id)}
+                      onSelect={() => pick(s.id)}
+                      onRemove={() => removeSlide(s.id)}
+                    />
+                  </Fragment>
                 ))}
+                <AddSlideButton
+                  onAdd={() => addSlideAt(slides.length)}
+                  label="Add a slide at the end of the deck"
+                />
+
+                {/* The insertion affordance is hover-revealed, which is fine
+                    between cards and useless when there are none — an empty
+                    deck would be a blank pane with no visible way out. */}
+                {slides.length === 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => addSlideAt(0)}
+                    className="flex aspect-video w-full cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-card text-detail transition-colors hover:border-brand-1/50 hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring focus-visible:outline-none"
+                  >
+                    <Plus className="size-6" />
+                    <span className="text-[13.5px] font-medium">Add the first slide</span>
+                    <span className="max-w-80 text-center text-[12.5px] leading-normal text-detail">
+                      Every slide has been removed. Add one and describe it — the layout is chosen
+                      for you.
+                    </span>
+                  </button>
+                ) : null}
               </div>
             </div>
           </ScrollArea>

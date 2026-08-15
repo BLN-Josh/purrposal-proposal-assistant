@@ -15,11 +15,34 @@ export interface GenerateRequest {
   sourceFileName?: string | null;
 }
 
+/**
+ * One line of the deck map sent alongside an edit: enough for the model to
+ * keep a revision consistent with its neighbours, small enough that sending
+ * it costs nothing. Deliberately titles-only — a full slide body is ~25x
+ * the tokens and the model has no business rewriting slides it wasn't asked
+ * about.
+ */
+export interface SlideOutlineEntry {
+  /** Lets the server locate an edited slide's position without the client
+   * sending positions separately. Never rendered into a prompt. */
+  id: string;
+  /** 1-based position in the deck, matching the number on the card. */
+  index: number;
+  kind: Slide["kind"];
+  /** Content slides carry the two-line title; the cover carries a title. */
+  assertion?: string;
+  title?: string;
+}
+
 export interface EditRequest {
-  slideIds: string[];
   instruction: string;
   model: string;
+  /**
+   * ONLY the slides being edited — not the whole deck. Deck-wide context
+   * travels in `outline` instead.
+   */
   slides: Slide[];
+  outline?: SlideOutlineEntry[];
 }
 
 export interface EditResult {
