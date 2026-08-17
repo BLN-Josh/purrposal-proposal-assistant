@@ -1,36 +1,59 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Proposal Assistant
 
-## Getting Started
+Turn a client brief into a pitch-ready, on-brand proposal deck — generate a
+10-slide draft, edit any single slide with a plain-language instruction, and
+export to PowerPoint or PDF. Built for Balerion's Hackathon 2026 (Case B:
+Process Improvement & Tech Delivery).
 
-First, run the development server:
+See `PRD_AI_Proposal_Assistant.md` and `AI-Proposal-Assistant_Design-Document.md`
+for the product spec and design rationale this build implements.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## Getting started
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+1. Copy `.env.example` to `.env.local` and set `ANTHROPIC_API_KEY`.
+2. Install dependencies and run the dev server:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+   ```bash
+   pnpm install
+   pnpm dev
+   ```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+3. Open [http://localhost:3000](http://localhost:3000).
 
-## Learn More
+There is no database and no login for this build — see `4.1` in the
+technical design notes: config (rate card, team roster, module catalogs,
+boilerplate) is static JSON/TS under `src/config/`, and a generated deck
+lives only in the browser's session for the duration of the demo.
 
-To learn more about Next.js, take a look at the following resources:
+## How it works
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- **Generate** (`/api/generate`) — streams real pipeline progress (NDJSON)
+  while it drafts Project Understanding, Option Analysis, Solution Proposal,
+  and Execution Methodology with Claude, retrieves Feature Detail Table /
+  Change Management / Team Bios straight from config (no LLM call), computes
+  Commercial Terms deterministically from the rate card, then drafts the
+  Executive Summary last.
+- **Edit** (`/api/edit`) — scoped, single-slide regeneration. A money-guard
+  classifies pricing-related instructions in code _before_ any model call:
+  a price change on a non-Commercial slide is rejected, and a price change
+  on the Commercial slide only goes through if it maps to an actual scope
+  addition (which recomputes the rate card total) — never a free-typed
+  number.
+- **Export** — `.pptx` via `pptxgenjs` (server-side, Balerion brand), or PDF
+  via `html2canvas` + `jsPDF` (client-side, captures the exact on-screen
+  slide component).
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Proposal types
 
-## Deploy on Vercel
+`src/config/proposal-types.ts` ships four starter configs (Warehouse
+Management, Facilities & Campus Operations, Fleet & Vehicle Tracking,
+Generic) — each with its own module catalog, KPIs, and default
+extend/buy/build comparison frame. Add a new proposal type by adding an
+entry there; no other code changes are required.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Confidentiality
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+No real client names, figures, or client-engagement data are used anywhere
+in this repo — the sample brief and every config default are fabricated or
+drawn only from Balerion's own reusable boilerplate (team bios, methodology
+copy), never from a specific client deal.

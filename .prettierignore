@@ -1,0 +1,13 @@
+# Build output and dependencies
+.next/
+out/
+build/
+node_modules/
+next-env.d.ts
+tsconfig.tsbuildinfo
+
+# Lockfiles — formatting them creates noisy, meaningless diffs
+pnpm-lock.yaml
+
+# Binary/brand assets
+public/
