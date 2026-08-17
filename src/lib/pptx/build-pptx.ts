@@ -6,7 +6,7 @@ import {
 } from "./theme";
 import { defineMasters, loadLogoData } from "./masters";
 import {
-  titleBlock, banner, rowLabelStack, chevronRibbon, bandedTable,
+  titleBlock, banner, rowLabelStack, chevronRibbon, bandedTable, fitFontSize,
   accentFor, tintFor, type Ctx, type StackRow,
 } from "./helpers";
 
@@ -34,9 +34,10 @@ function addTitleSlide(ctx: Ctx, s: Of<"title">) {
   if (logo) slide.addImage({ data: logo, x: 1.1, y: 3.0, w: 3.4, h: 3.4 / (603 / 105) });
 
   slide.addText(s.title.toUpperCase(), {
-    x: 6.9, y: 3.05, w: 5.9, h: 0.5,
-    fontSize: TYPE.coverTitle.size, bold: true, color: t.accent,
-    align: "right", valign: "bottom", fontFace: t.font,
+    x: 6.9, y: 2.75, w: 5.9, h: 0.8,
+    fontSize: fitFontSize(s.title, 5.9, 0.8, TYPE.coverTitle.size, 10),
+    bold: true, color: t.accent,
+    align: "right", valign: "bottom", fontFace: t.font, fit: "shrink",
   });
   slide.addShape(pptx.ShapeType.rect, { x: 9.6, y: 3.6, w: 3.2, h: 0.015, fill: { color: t.accent }, line: { color: t.accent } });
   if (s.subtitle) {
@@ -62,8 +63,9 @@ function addDividerSlide(ctx: Ctx, s: Of<"divider">) {
   if (logo) slide.addImage({ data: logo, x: 8.9, y: 3.1, w: 3.4, h: 3.4 / (603 / 105) });
 
   slide.addText(s.sectionName.toUpperCase(), {
-    x: 0.55, y: 3.05, w: 7.9, h: 0.5,
-    fontSize: TYPE.coverTitle.size, bold: true, color: t.accent, valign: "bottom", fontFace: t.font,
+    x: 0.55, y: 2.75, w: 7.9, h: 0.8,
+    fontSize: fitFontSize(s.sectionName, 7.9, 0.8, TYPE.coverTitle.size, 10),
+    bold: true, color: t.accent, valign: "bottom", fontFace: t.font, fit: "shrink",
   });
   slide.addShape(pptx.ShapeType.rect, { x: 0.55, y: 3.6, w: 3.2, h: 0.015, fill: { color: t.accent }, line: { color: t.accent } });
   if (s.deckSubtitle) {
@@ -75,7 +77,8 @@ function addDividerSlide(ctx: Ctx, s: Of<"divider">) {
   if (s.scopeNote) {
     slide.addText(s.scopeNote, {
       x: 0.55, y: 5.6, w: 6.5, h: 0.8,
-      fontSize: TYPE.bulletBody.size, color: t.black, valign: "top", fontFace: t.font,
+      fontSize: fitFontSize(s.scopeNote, 6.5, 0.8, TYPE.bulletBody.size, 6),
+      color: t.black, valign: "top", fontFace: t.font, fit: "shrink",
     });
   }
 }
@@ -108,7 +111,8 @@ function addBulletsSlide(ctx: Ctx, s: Of<"bullets">) {
   if (s.intro) {
     ctx.slide.addText(s.intro, {
       x: PAGE.marginX, y: yStart, w: BAND_W, h: 0.42,
-      fontSize: TYPE.bulletBody.size + 1, color: t.black, valign: "top", fontFace: t.font,
+      fontSize: fitFontSize(s.intro, BAND_W, 0.42, TYPE.bulletBody.size + 1, 6),
+      color: t.black, valign: "top", fontFace: t.font, fit: "shrink",
     });
     yStart += 0.52;
   }
@@ -156,11 +160,18 @@ function addComparisonSlide(ctx: Ctx, s: Of<"comparison">) {
     })),
   ]);
 
+  // The stamp sits under the table, so the table is given the band minus the
+  // stamp's own strip rather than being allowed to grow into it.
+  const stampH = recIdx >= 0 ? 0.32 : 0;
+  const tableY = PAGE.bandTop + 0.1;
+  const tableH = PAGE.bandBottom - tableY - stampH;
+
   bandedTable(ctx, {
     headers: ["Comparing matrix", ...s.options.map((o) => o.name)],
     widths: [criteriaW, ...s.options.map(() => optW)],
     rows,
-    y: PAGE.bandTop + 0.1,
+    y: tableY,
+    h: tableH,
     headerFill: accent,
     horizontalOnly: true,
     bodySize: TYPE.bulletBody.size,
@@ -169,10 +180,10 @@ function addComparisonSlide(ctx: Ctx, s: Of<"comparison">) {
   if (recIdx >= 0) {
     ctx.slide.addText("*Recommended", {
       x: PAGE.marginX + criteriaW + optW * recIdx,
-      y: PAGE.bandBottom - 0.28,
-      w: optW, h: 0.28,
+      y: tableY + tableH + 0.04,
+      w: optW, h: stampH,
       fontSize: TYPE.boxHeading.size, bold: true, color: accent,
-      align: "center", fontFace: t.font,
+      align: "center", valign: "middle", fontFace: t.font,
     });
   }
 }
@@ -219,6 +230,10 @@ function addTableSlide(ctx: Ctx, s: Of<"table">) {
     rows: s.rows.map((r) => [{ text: r.feature, bold: true }, r.description, r.details, r.actionSupport]),
     x: panelX + bandW + 0.12,
     y: panelY + 0.12,
+    // Inset on both sides so the table stays visibly *inside* the tinted
+    // panel — previously it grew past the panel's bottom edge on any deck
+    // with more than about three feature rows.
+    h: panelH - 0.24,
     headerFill: t.white,
   });
 }
@@ -231,29 +246,42 @@ function addValueChainSlide(ctx: Ctx, s: Of<"valueChain">) {
   titleBlock(ctx, { sectionLabel: s.sectionLabel, assertion: s.assertion, page: s.page, accent });
 
   const widths = [2.4, 2.6, 2.6, 2.4, 2.2];
-  const totalRows = s.blocks.reduce((n, b) => n + b.rows.length, 0);
+  const captionH = 0.26;
+
+  /**
+   * Height is budgeted up front and every block is told exactly what it gets,
+   * because this layout stacks two or three tables down one band. The old
+   * code advanced `y` by a *predicted* row height while the tables themselves
+   * carried no height at all, so PowerPoint grew them to fit their text and
+   * block two landed on top of block one. Now the budget and the tables agree
+   * by construction: each block renders in exactly the height reserved for it.
+   */
   const captions = s.blocks.filter((b) => b.caption).length;
-  // Distribute the band across every block's header + rows + caption line.
-  const avail = PAGE.bandBottom - (PAGE.bandTop + 0.1);
-  const unitH = avail / (totalRows + s.blocks.length + captions * 0.6);
+  const gaps = GAP.normal * Math.max(0, s.blocks.length - 1);
+  const avail = PAGE.bandBottom - (PAGE.bandTop + 0.1) - captions * captionH - gaps;
+  const totalRows = s.blocks.reduce((n, b) => n + b.rows.length, 0);
+  // Every block also pays for its own header row, so the divisor counts rows
+  // plus one per block rather than rows alone.
+  const unitH = avail / (totalRows + s.blocks.length);
 
   let y = PAGE.bandTop + 0.1;
   for (const block of s.blocks) {
     if (block.caption) {
       ctx.slide.addText(block.caption, {
-        x: PAGE.marginX, y, w: BAND_W, h: unitH * 0.6,
-        fontSize: TYPE.boxHeading.size, bold: true, color: accent, valign: "middle", fontFace: t.font,
+        x: PAGE.marginX, y, w: BAND_W, h: captionH,
+        fontSize: TYPE.boxHeading.size, bold: true, color: accent,
+        valign: "middle", fontFace: t.font, fit: "shrink",
       });
-      y += unitH * 0.6;
+      y += captionH;
     }
-    bandedTable(ctx, {
+    y += bandedTable(ctx, {
       headers: ["Features", "Task", "Output", "Outcome", "Benefit"],
       widths,
       rows: block.rows.map((r) => [{ text: r.feature, bold: true }, r.task, r.output, r.outcome, r.benefit]),
       y,
+      h: unitH * (block.rows.length + 1),
       headerFill: accent,
-    });
-    y += unitH * (block.rows.length + 1) + GAP.normal;
+    }) + GAP.normal;
   }
 }
 
@@ -280,6 +308,8 @@ function addTimelineSlide(ctx: Ctx, s: Of<"timeline">) {
 
   const overlap = 0.12;
   const colW = (BAND_W + overlap * (n - 1)) / n;
+  const detailTop = ribbonY + ribbonH + 0.58;
+  const detailH = PAGE.bandBottom - detailTop - (s.footnote ? 0.34 : 0);
   s.phases.forEach((p, i) => {
     const x = PAGE.marginX + i * (colW - overlap);
     ctx.slide.addText(p.weeks, {
@@ -287,8 +317,9 @@ function addTimelineSlide(ctx: Ctx, s: Of<"timeline">) {
       fontSize: TYPE.boxHeading.size, bold: true, color: accent, align: "center", fontFace: t.font,
     });
     ctx.slide.addText(p.detail, {
-      x, y: ribbonY + ribbonH + 0.58, w: colW - 0.2, h: 2.4,
-      fontSize: TYPE.bulletBody.size, color: t.gray700, valign: "top", align: "center", fontFace: t.font,
+      x, y: ribbonY + ribbonH + 0.58, w: colW - 0.2, h: detailH,
+      fontSize: fitFontSize(p.detail, colW - 0.2, detailH, TYPE.bulletBody.size, 6),
+      color: t.gray700, valign: "top", align: "center", fontFace: t.font, fit: "shrink",
     });
   });
 
@@ -314,12 +345,21 @@ function addTeamSlide(ctx: Ctx, s: Of<"team">) {
   if (dark) {
     slide.addText(
       [
-        { text: `${s.sectionLabel.toUpperCase()}:`, options: { color: accent, bold: true, breakLine: true } },
-        { text: s.assertion.toUpperCase(), options: { color: t.white, bold: true } },
+        {
+          text: `${s.sectionLabel.toUpperCase()}:`,
+          options: { color: accent, bold: true, breakLine: true, fontSize: TYPE.sectionLabel.size },
+        },
+        {
+          text: s.assertion.toUpperCase(),
+          options: {
+            color: t.white, bold: true,
+            fontSize: fitFontSize(s.assertion, BAND_W, PAGE.titleH - 0.21, TYPE.assertion.size, TYPE.sectionLabel.size + 2),
+          },
+        },
       ],
       {
-        x: PAGE.marginX, y: PAGE.marginTop, w: BAND_W, h: 0.62,
-        fontSize: TYPE.sectionLabel.size, fontFace: t.font, valign: "top", lineSpacingMultiple: 0.95,
+        x: PAGE.marginX, y: PAGE.marginTop, w: BAND_W, h: PAGE.titleH,
+        fontFace: t.font, valign: "top", fit: "shrink", lineSpacingMultiple: 0.95,
       }
     );
   } else {
@@ -346,11 +386,18 @@ function addTeamSlide(ctx: Ctx, s: Of<"team">) {
 
     const tx = x + d + 0.25;
     const tw = 5.85 - d - 0.25;
-    slide.addText(p.name, { x: tx, y, w: tw, h: 0.3, fontSize: 13, bold: true, color: nameColor, fontFace: t.font });
-    slide.addText(p.role, { x: tx, y: y + 0.3, w: tw, h: 0.26, fontSize: 11, bold: true, color: accent, fontFace: t.font });
+    slide.addText(p.name, {
+      x: tx, y, w: tw, h: 0.3, fontSize: fitFontSize(p.name, tw, 0.3, 13, 9),
+      bold: true, color: nameColor, fontFace: t.font, fit: "shrink",
+    });
+    slide.addText(p.role, {
+      x: tx, y: y + 0.3, w: tw, h: 0.26, fontSize: fitFontSize(p.role, tw, 0.26, 11, 8),
+      bold: true, color: accent, fontFace: t.font, fit: "shrink",
+    });
     slide.addText(p.bio, {
       x: tx, y: y + 0.58, w: tw, h: rowH - 0.7,
-      fontSize: TYPE.bulletBody.size, color: bioColor, align: "justify", valign: "top", fontFace: t.font,
+      fontSize: fitFontSize(p.bio, tw, rowH - 0.7, TYPE.bulletBody.size, 6),
+      color: bioColor, align: "justify", valign: "top", fontFace: t.font, fit: "shrink",
     });
   });
 }
@@ -383,11 +430,16 @@ function addCommercialSlide(ctx: Ctx, s: Of<"commercial">) {
     ]);
   }
 
+  const footnoteH = s.footnote ? 0.3 : 0;
+  const tableY = PAGE.bandTop + 0.1;
+  const tableH = PAGE.bandBottom - tableY - footnoteH;
+
   bandedTable(ctx, {
     headers: ["Items", "Description", "Cost (THB)"],
     widths: [2.7, 6.9, 2.6],
     rows,
-    y: PAGE.bandTop + 0.1,
+    y: tableY,
+    h: tableH,
     headerFill: accent,
     zebraColumn: 2,
     horizontalOnly: true,
@@ -396,8 +448,9 @@ function addCommercialSlide(ctx: Ctx, s: Of<"commercial">) {
 
   if (s.footnote) {
     ctx.slide.addText(s.footnote, {
-      x: PAGE.marginX, y: PAGE.bandBottom - 0.28, w: BAND_W, h: 0.28,
-      fontSize: TYPE.footnote.size, italic: true, color: accent, fontFace: t.font,
+      x: PAGE.marginX, y: tableY + tableH + 0.02, w: BAND_W, h: footnoteH,
+      fontSize: TYPE.footnote.size, italic: true, color: accent,
+      valign: "middle", fontFace: t.font, fit: "shrink",
     });
   }
 }

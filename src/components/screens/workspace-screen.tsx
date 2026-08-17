@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useRef, useState } from "react";
 import {
+  AlertTriangle,
   ChevronDown,
   FileText,
   FileType2,
@@ -32,6 +33,7 @@ import {
 } from "@/components/ui/select";
 import { SlideCard } from "@/components/slide-card";
 import { AddSlideButton } from "@/components/add-slide-button";
+import { DeckOutline } from "@/components/deck-outline";
 import { MODEL_OPTIONS, MODEL_LABEL } from "@/lib/models";
 import { exportSlidesToPdf } from "@/lib/export-pdf";
 import { slugify } from "@/lib/download";
@@ -75,6 +77,7 @@ export function WorkspaceScreen() {
   const [pdfBusy, setPdfBusy] = useState(false);
 
   const selectionLabel = labelFor(sel, slides);
+  const fullSelectionLabel = labelFor(sel, slides, Infinity);
   const draftCount = slides.filter((s) => s.kind === "placeholder").length;
   const selectedIsDraft = slides.some((s) => sel.includes(s.id) && s.kind === "placeholder");
 
@@ -127,13 +130,19 @@ export function WorkspaceScreen() {
 
   return (
     <div className="animate-fade-up flex min-h-0 flex-1 flex-col">
-      <div className="flex h-14 flex-none items-center justify-between border-b border-border bg-card px-5">
-        <div className="flex min-w-0 items-center gap-3.5">
-          <span className="font-display text-[19px] font-semibold text-foreground">
+      {/* The deck is the thing being worked on, so the deck's title is the
+          primary line here. The product name was set two sizes larger than
+          the document it contains — correct on a landing page, backwards
+          once you are inside the editor. */}
+      <div className="flex h-14 flex-none items-center justify-between border-b border-border bg-card/85 px-5 backdrop-blur-md">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="hidden font-mono text-[10.5px] tracking-[0.12em] text-detail uppercase lg:inline">
             Proposal Assistant
           </span>
-          <span className="h-5 w-px bg-border" />
-          <span className="truncate text-[13.5px] font-medium text-foreground">{deckTitle}</span>
+          <span className="hidden h-5 w-px bg-border lg:block" />
+          <span className="truncate font-display text-[17px] font-semibold text-foreground">
+            {deckTitle}
+          </span>
           <Badge variant="outline" className="font-mono text-[11px] font-normal text-detail">
             {fileName ?? "typed brief"}
           </Badge>
@@ -149,7 +158,12 @@ export function WorkspaceScreen() {
       </div>
 
       <div className="flex min-h-0 flex-1">
-        <div className="flex w-[38%] min-h-0 flex-none flex-col border-r border-border bg-card">
+        {/* Bounded rather than a bare percentage: the outline needs a floor to
+            stay readable on a laptop, and past ~450px the extra width is just
+            taken from the deck, which is the thing being made. */}
+        <div className="flex w-[34%] min-w-80 max-w-112 min-h-0 flex-none flex-col border-r border-border bg-card">
+          <DeckOutline slides={slides} sel={sel} />
+
           <ScrollArea className="min-h-0 flex-1">
             <div className="p-4">
               <div className="flex items-center gap-1.5 font-mono text-[10.5px] tracking-[0.09em] text-detail uppercase">
@@ -167,13 +181,19 @@ export function WorkspaceScreen() {
                     <div
                       key={e.id}
                       className={cn(
-                        "animate-fade-up rounded-lg border-l-2 bg-card p-3 shadow-soft",
+                        "animate-fade-up rounded-lg border-l-2 bg-card p-3 shadow-soft transition-all duration-300 [transition-timing-function:var(--ease-smooth)] hover:-translate-y-0.5 hover:shadow-soft-lg",
                         e.failed ? "border-l-destructive" : "border-l-ring/50"
                       )}
                     >
                       <div className="flex items-baseline justify-between gap-2.5">
-                        <span className="font-mono text-[10.5px] text-foreground">{e.scope}</span>
-                        <span className="font-mono text-[10.5px] text-detail">{e.time}</span>
+                        <span className="truncate font-mono text-[10.5px] text-foreground">
+                          {e.scope}
+                        </span>
+                        {/* The timestamp is the row's anchor — it must never
+                            be the thing a long scope pushes out. */}
+                        <span className="flex-none font-mono text-[10.5px] text-detail">
+                          {e.time}
+                        </span>
                       </div>
                       <div className="mt-1.5 text-[13.5px] leading-normal text-foreground">
                         {e.instruction}
@@ -198,9 +218,16 @@ export function WorkspaceScreen() {
               {sel.length > 0 ? (
                 <Badge
                   variant="secondary"
-                  className="animate-ring-in h-7 gap-2 rounded-full py-0 pr-1.5 pl-3 text-[12.5px] font-medium"
+                  /* The elided numbers are still recoverable on hover rather
+                     than lost — the badge shows five, the tooltip shows all. */
+                  title={
+                    selectionLabel === fullSelectionLabel
+                      ? undefined
+                      : `Editing: ${fullSelectionLabel}`
+                  }
+                  className="animate-ring-in h-7 min-w-0 shrink gap-2 rounded-full py-0 pr-1.5 pl-3 text-[12.5px] font-medium"
                 >
-                  Editing: {selectionLabel}
+                  <span className="truncate">Editing: {selectionLabel}</span>
                   <button
                     type="button"
                     aria-label="Clear slide selection"
@@ -211,8 +238,15 @@ export function WorkspaceScreen() {
                   </button>
                 </Badge>
               ) : (
-                <span className="font-mono text-[11.5px] text-detail">
-                  No selection — instruction applies to the whole deck
+                /* This is the most consequential state in the editor: with
+                   nothing selected, one instruction rewrites every slide in
+                   the deck. It used to be the quietest thing on the panel —
+                   grey mono text, lighter than the label above it. */
+                <span className="flex items-center gap-2 rounded-full bg-brand-5/12 py-1 pr-3 pl-2.5 font-mono text-[11.5px] text-brand-1 ring-1 ring-brand-5/30">
+                  <AlertTriangle className="size-3.25 shrink-0" strokeWidth={2} />
+                  {slides.length === 1
+                    ? "Applies to the whole deck"
+                    : `Applies to all ${slides.length} slides`}
                 </span>
               )}
             </div>
@@ -235,7 +269,7 @@ export function WorkspaceScreen() {
                   ? "Describe this new slide — e.g. Compare on-prem vs cloud hosting for the warehouse system"
                   : "e.g. Cut this to 3 bullets · Change the timeline to 8 months · Add a row for API integration"
               }
-              className="h-22 resize-none bg-card text-[14px] leading-[1.55]"
+              className="h-22 resize-none bg-card text-[14px] leading-[1.55] transition-shadow duration-300 [transition-timing-function:var(--ease-smooth)] focus-visible:shadow-soft-lg"
             />
             <div className="flex items-center justify-between gap-3">
               <Select value={model} onValueChange={(v) => v && setModel(v)}>
@@ -279,9 +313,18 @@ export function WorkspaceScreen() {
                   Select multiple
                 </label>
               </div>
-              <span className="font-mono text-[11.5px] text-detail">
-                {slides.length} slides · 16:9
-                {draftCount ? ` · ${draftCount} empty` : ""}
+              <span className="flex items-center gap-2 font-mono text-[11.5px] text-detail">
+                <span>
+                  {slides.length} slides · 16:9
+                </span>
+                {/* Empty slides are the one count here that is a to-do rather
+                    than a fact — they are silently dropped from both exports,
+                    so it gets the amber treatment instead of blending in. */}
+                {draftCount ? (
+                  <span className="rounded-full bg-brand-5/15 px-2 py-0.5 text-[11px] text-brand-1 ring-1 ring-brand-5/30">
+                    {draftCount} empty
+                  </span>
+                ) : null}
               </span>
             </div>
 
@@ -317,7 +360,11 @@ export function WorkspaceScreen() {
             </DropdownMenu>
           </div>
 
-          <ScrollArea className="min-h-0 flex-1">
+          {/* The canvas sits a shade deeper than the app's cream so a white
+              16:9 page reads as an object lying on a surface. Everything from
+              the slide card inward stays white — that is the deck, and it is
+              what the PDF exporter captures. */}
+          <ScrollArea className="min-h-0 flex-1 bg-muted shadow-[inset_0_8px_12px_-10px_rgba(47,16,0,0.18)]">
             <div className="px-6 py-6 pb-16">
               {/* gap-0 on purpose: the AddSlideButton rows *are* the gaps
                   (h-5.5 each), so every space between two slides is a click
@@ -352,9 +399,9 @@ export function WorkspaceScreen() {
                   <button
                     type="button"
                     onClick={() => addSlideAt(0)}
-                    className="flex aspect-video w-full cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-card text-detail transition-colors hover:border-brand-1/50 hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring focus-visible:outline-none"
+                    className="group/empty flex aspect-video w-full cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-card text-detail transition-all duration-300 [transition-timing-function:var(--ease-smooth)] hover:border-brand-1/50 hover:bg-highlight/20 hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring focus-visible:outline-none"
                   >
-                    <Plus className="size-6" />
+                    <Plus className="size-6 transition-transform duration-300 [transition-timing-function:var(--ease-spring)] group-hover/empty:scale-125 group-hover/empty:rotate-90" />
                     <span className="text-[13.5px] font-medium">Add the first slide</span>
                     <span className="max-w-80 text-center text-[12.5px] leading-normal text-detail">
                       Every slide has been removed. Add one and describe it — the layout is chosen

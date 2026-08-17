@@ -4,9 +4,11 @@ import { cn } from "@/lib/utils";
 import { SlideSurface, SlideTitle, SlideBody, accentFor } from "./slide-primitives";
 
 /** UND-06 — the option matrix: criteria down the left edge, 2–3 options
- * across. Exactly one option is `recommended` (the schema refines on it), and
- * that column carries the accent all the way down plus the `*Recommended`
- * mark, so the verdict is legible at thumbnail size without reading a cell.
+ * across. Exactly one option is `recommended` — normalised in
+ * lib/slides/repair.ts, not by the schema, which cannot refine a member of a
+ * discriminated union — and that column carries the accent all the way down
+ * plus the `*Recommended` mark, so the verdict is legible at thumbnail size
+ * without reading a cell.
  *
  * Built as one grid rather than per-column stacks so criterion rows stay on a
  * shared baseline when cell verdicts wrap to different line counts. */

@@ -92,12 +92,48 @@ export function addScopeLine(
       cost: `THB ${cost.toLocaleString("en-US")}`,
     },
   ];
-  const priorTotal = parseTotalTHB(current.total ?? "");
+  const priorTotal = parseTotalTHB(current.total);
+
+  // An unreadable prior total is left alone rather than replaced by one
+  // derived from this single line. Dropping `total` shows the deck as having
+  // no stated total — which is true and visible — where the old behaviour
+  // printed the new line's own cost as if it were the engagement total.
+  if (priorTotal === null) {
+    return { ...current, rows, total: undefined };
+  }
+
   const total = `THB ${(priorTotal + cost).toLocaleString("en-US")}`;
   return { ...current, rows, total };
 }
 
-function parseTotalTHB(total: string): number {
-  const digits = total.replace(/[^0-9]/g, "");
-  return digits ? Number(digits) : 0;
+/**
+ * Reads a stored total back into a number, or `null` when it cannot be read.
+ *
+ * The previous implementation stripped every non-digit and concatenated
+ * what was left, which silently corrupted anything but a plain grouped
+ * integer: `"THB 1,000,000.50"` became 100000050 — a 100× error on a
+ * client-facing price — and `"THB 1.5 million"` became 15. Grouped digits are
+ * matched as a unit instead, and anything else (`"TBD"`, `"1.5 million"`,
+ * absent) is reported as unreadable rather than guessed at.
+ */
+function parseTotalTHB(total: string | undefined): number | null {
+  if (!total) return null;
+  // A run of digits with optional thousands groups, optionally followed by a
+  // decimal part. Anchored to a word boundary so "THB 5,400,000.50" reads as
+  // one number and not as several.
+  const match = /(\d{1,3}(?:,\d{3})+|\d+)(\.\d+)?/.exec(total);
+  if (!match) return null;
+
+  const remainder = total.slice(match.index + match[0].length);
+
+  // "THB 5.4M" is 5,400,000, not 5.4 — a magnitude suffix means the digits
+  // alone are not the value, so the total is unreadable rather than small.
+  if (/^\s*(m|mn|k|bn|b|million|thousand|billion)\b/i.test(remainder)) return null;
+
+  // Reject anything with a second, unrelated number in it ("1,000,000 (ex VAT
+  // 7%)"): which one is the total is a guess, and guessing is the bug.
+  if (/\d/.test(remainder)) return null;
+
+  const value = Number(`${match[1].replace(/,/g, "")}${match[2] ?? ""}`);
+  return Number.isFinite(value) ? value : null;
 }

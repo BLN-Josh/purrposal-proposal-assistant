@@ -5,14 +5,17 @@ import {
   KIND_LABEL,
   NewSlideKindSchema,
   type CommercialContent,
+  type ComparisonContent,
   type SlideKind,
 } from "@/lib/slides/schema";
+import { repairComparison, assertPaymentTermsSum } from "@/lib/slides/repair";
 import { generateStructured } from "@/lib/anthropic";
 import { classifyEditIntent, extractScopeLabel, MONEY_GUARD_MESSAGES } from "@/lib/generation/edit-guard";
 import { editSlidePrompt, newSlidePrompt, slideKindPrompt } from "@/lib/generation/prompts";
 import { addScopeLine } from "@/lib/pricing";
 import { classifyError } from "@/lib/errors";
 import { isKnownModel } from "@/lib/models";
+import { MAX_JSON_BODY_BYTES, OVERSIZE_BODY_MESSAGE, exceedsDeclaredSize } from "@/config/upload";
 import type { EditResponse, EditResult, SlideOutlineEntry } from "@/lib/api-types";
 
 export const dynamic = "force-dynamic";
@@ -68,6 +71,10 @@ const CONCURRENCY = 4;
  * financial figure (NFR-2).
  */
 export async function POST(request: Request) {
+  if (exceedsDeclaredSize(request, MAX_JSON_BODY_BYTES)) {
+    return Response.json({ error: OVERSIZE_BODY_MESSAGE }, { status: 413 });
+  }
+
   const json = await request.json().catch(() => null);
   const parsed = RequestSchema.safeParse(json);
   if (!parsed.success) {
@@ -223,9 +230,23 @@ interface SlideEnvelopeFields {
  * placeholder `hint` on the way through.
  */
 function assemble(kind: SlideKind, content: unknown, envelope: SlideEnvelopeFields): Slide {
+  let fields = content as Record<string, unknown>;
+
+  // Cross-field rules the schema cannot carry: the `Slide` union is built
+  // from `ComparisonContentBase`, so the `.refine()`s on `ComparisonContent`
+  // never ran on this path. Generation repaired its output and edits did not,
+  // which is how an edit could produce a matrix with blank cells and two
+  // recommended columns — see lib/slides/repair.ts.
+  if (kind === "comparison") {
+    fields = { ...fields, ...repairComparison(fields as unknown as ComparisonContent) };
+  }
+  if (kind === "commercial") {
+    assertPaymentTermsSum(fields.paymentTerms as { pct: number }[] | undefined);
+  }
+
   return Slide.parse({
     ...envelope,
-    ...(content as Record<string, unknown>),
+    ...fields,
     kind,
     revised: true,
   });

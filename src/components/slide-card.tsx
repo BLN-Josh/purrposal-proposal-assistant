@@ -112,11 +112,16 @@ export function SlideCard({
         <X className="size-3.25" />
       </button>
 
+      {/* Selection and failure must not look alike. `card-foreground` and
+          `primary` are both #2f1000, so these two rings used to render as the
+          same espresso outline — a failed edit was indistinguishable from a
+          slide the user had merely clicked. Failure now takes the destructive
+          red it shares with the toast and the error text in the log. */}
       {selected ? (
         <div className="animate-ring-in pointer-events-none absolute -inset-1 rounded-xl border-[3px] border-card-foreground transition-colors duration-150" />
       ) : null}
       {errored ? (
-        <div className="animate-ring-in pointer-events-none absolute -inset-1 rounded-xl border-[3px] border-primary" />
+        <div className="animate-ring-in pointer-events-none absolute -inset-1 rounded-xl border-[3px] border-destructive shadow-[0_0_0_6px_rgba(220,38,38,0.10)]" />
       ) : null}
     </div>
   );

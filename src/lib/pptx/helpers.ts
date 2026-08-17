@@ -46,6 +46,42 @@ export function estimateTextHeight(text: string, widthIn: number, fontSizePt: nu
 }
 
 /**
+ * The largest size at or below `baseSize` whose text still fits `heightIn`.
+ *
+ * PowerPoint's own "shrink text on overflow" only recalculates when the shape
+ * is edited — pptxgenjs cannot trigger it, so a file that relies on it alone
+ * opens overflowing and tidies itself only if the user happens to click the
+ * box. Sizing here instead means the deck is correct the moment it opens, and
+ * `fit: "shrink"` is still set alongside so PowerPoint refines from a good
+ * starting point rather than a broken one.
+ *
+ * Steps down in half-points because a 0.5pt change is invisible per-slide but
+ * compounds to a whole line over a paragraph.
+ */
+export function fitFontSize(
+  text: string,
+  widthIn: number,
+  heightIn: number,
+  baseSize: number,
+  minSize = 6
+): number {
+  let size = baseSize;
+  while (size > minSize && estimateTextHeight(text, widthIn, size) > heightIn) {
+    size -= 0.5;
+  }
+  return Math.max(minSize, size);
+}
+
+/** Longest cell in a column, for deciding whether a table row needs to shrink. */
+function longestCell(rows: BandedTableOpts["rows"], colIndex: number): string {
+  return rows.reduce((longest, row) => {
+    const cell = row[colIndex];
+    const text = typeof cell === "string" ? cell : (cell?.text ?? "");
+    return text.length > longest.length ? text : longest;
+  }, "");
+}
+
+/**
  * Spec §2 — the two-line title, on every content slide. Line 1 is the
  * repeating section taxonomy in the accent colour with a trailing colon;
  * line 2 is the slide's unique assertion in black. Both uppercase. No rule
@@ -58,19 +94,43 @@ export function titleBlock(
   const { slide, t } = ctx;
   const accent = opts.accent ?? t.accent;
   const suffix = opts.page ? ` (${opts.page.n}/${opts.page.m})` : "";
+  const w = PAGE.w - PAGE.marginX * 2;
+  const h = PAGE.titleH;
+
+  // Two sizes, not one. The renderer sets the kicker at 1.3cqw and the
+  // assertion at 2.5cqw, so exporting both at a single size flattened the
+  // one piece of hierarchy this layout has. The assertion still shrinks to
+  // fit — it is the line most likely to run long — but only down to the
+  // point where it is still clearly larger than its own label.
+  const labelSize = TYPE.sectionLabel.size;
+  const labelH = (labelSize / 72) * 1.25;
+  const assertionSize = fitFontSize(
+    `${opts.assertion}${suffix}`,
+    w,
+    h - labelH,
+    TYPE.assertion.size,
+    labelSize + 2
+  );
+
   slide.addText(
     [
-      { text: `${opts.sectionLabel.toUpperCase()}:`, options: { color: accent, bold: true, breakLine: true } },
-      { text: `${opts.assertion.toUpperCase()}${suffix}`, options: { color: t.black, bold: true } },
+      {
+        text: `${opts.sectionLabel.toUpperCase()}:`,
+        options: { color: accent, bold: true, breakLine: true, fontSize: labelSize },
+      },
+      {
+        text: `${opts.assertion.toUpperCase()}${suffix}`,
+        options: { color: t.black, bold: true, fontSize: assertionSize },
+      },
     ],
     {
       x: PAGE.marginX,
       y: PAGE.marginTop,
-      w: PAGE.w - PAGE.marginX * 2,
-      h: 0.62,
-      fontSize: TYPE.sectionLabel.size,
+      w,
+      h,
       fontFace: t.font,
       valign: "top",
+      fit: "shrink",
       lineSpacingMultiple: 0.95,
     }
   );
@@ -97,11 +157,12 @@ export function banner(
     y: opts.y,
     w: w - 0.24,
     h,
-    fontSize: opts.size ?? TYPE.bannerText.size,
+    fontSize: fitFontSize(opts.text, w - 0.24, h, opts.size ?? TYPE.bannerText.size, 7),
     italic: opts.italic,
     color: textColorFor(opts.fill),
     align: opts.align ?? "center",
     valign: "middle",
+    fit: "shrink",
     fontFace: t.font,
   });
 }
@@ -174,24 +235,30 @@ export function rowLabelStack(
       const boxW = (bodyW - 0.24 - boxGap) / 2;
       row.boxes.forEach((box, bi) => {
         const bx = bodyX + 0.12 + bi * (boxW + boxGap);
+        const boxText = [box.heading, ...box.bullets].join("\n");
+        const boxSize = fitFontSize(boxText, boxW, rowH - 0.12, contentSize, 6);
         slide.addText(
           [
-            { text: box.heading, options: { bold: true, breakLine: true, fontSize: TYPE.boxHeading.size } },
-            ...box.bullets.map((b) => ({ text: b, options: { bullet: true, fontSize: contentSize } })),
+            { text: box.heading, options: { bold: true, breakLine: true, fontSize: Math.max(boxSize, TYPE.boxHeading.size - 1) } },
+            ...box.bullets.map((b) => ({ text: b, options: { bullet: true, fontSize: boxSize } })),
           ],
-          { x: bx, y: y + 0.06, w: boxW, h: rowH - 0.12, color: t.black, fontFace: t.font, valign: "top" }
+          { x: bx, y: y + 0.06, w: boxW, h: rowH - 0.12, color: t.black, fontFace: t.font, valign: "top", fit: "shrink" }
         );
       });
       return;
     }
 
+    const bodyText = row.lines.join("\n");
     slide.addText(
       row.lines.length > 1
         ? row.lines.map((line) => ({ text: line, options: { bullet: true } }))
         : (row.lines[0] ?? ""),
       {
         x: bodyX + 0.12, y, w: bodyW - 0.24, h: rowH,
-        fontSize: contentSize, color: t.black, valign: "middle", fontFace: t.font,
+        // Bullets add a hanging indent the estimator can't see, so the usable
+        // width is discounted rather than measured.
+        fontSize: fitFontSize(bodyText, (bodyW - 0.24) * (row.lines.length > 1 ? 0.92 : 1), rowH - 0.08, contentSize, 6),
+        color: t.black, valign: "middle", fontFace: t.font, fit: "shrink",
       }
     );
   });
@@ -237,6 +304,15 @@ export interface BandedTableOpts {
   rows: (string | { text: string; color?: string; bold?: boolean })[][];
   x?: number;
   y: number;
+  /**
+   * Total height the table must occupy. Required, and the single most
+   * important option here: without it pptxgenjs emits `<a:tr h="0">` for
+   * every row and PowerPoint grows each one to fit its text. The table then
+   * ends wherever the content happens to put it, while the builder places
+   * the next element using a height it merely guessed — which is why stacked
+   * blocks used to overlap and footnotes landed under the table.
+   */
+  h: number;
   headerFill: string;
   /** Spec COM-01: one column carries a persistent tint down the whole table. */
   zebraColumn?: number;
@@ -254,10 +330,24 @@ export interface BandedTableOpts {
  * that the source decks actually rely on: a persistently tinted column and
  * horizontal-only rules.
  */
-export function bandedTable(ctx: Ctx, opts: BandedTableOpts) {
+export function bandedTable(ctx: Ctx, opts: BandedTableOpts): number {
   const { slide, t } = ctx;
-  const bodySize = opts.bodySize ?? TYPE.tableBody.size;
   const headerSize = opts.headerSize ?? TYPE.tableHeader.size;
+
+  // Header keeps a fixed band; the body splits what is left equally. Equal
+  // rows are what make the table's end position predictable — the price is
+  // that a text-heavy row cannot borrow height from a sparse one, which is
+  // what the per-column shrink below pays for instead.
+  const headerH = Math.min(0.34, opts.h * 0.2);
+  const bodyH = opts.rows.length ? (opts.h - headerH) / opts.rows.length : 0;
+
+  // One size for the whole table, driven by whichever column is worst off:
+  // a table whose columns each shrank independently reads as a ransom note.
+  const bodySize = opts.widths.reduce((size, colW, ci) => {
+    const worst = longestCell(opts.rows, ci);
+    if (!worst) return size;
+    return Math.min(size, fitFontSize(worst, colW - 0.16, bodyH - 0.08, size, 6));
+  }, opts.bodySize ?? TYPE.tableBody.size);
 
   const headerRow: pptxgen.TableRow = opts.headers.map((h) => ({
     text: h,
@@ -290,7 +380,9 @@ export function bandedTable(ctx: Ctx, opts: BandedTableOpts) {
     x: opts.x ?? PAGE.marginX,
     y: opts.y,
     w: opts.widths.reduce((a, b) => a + b, 0),
+    h: opts.h,
     colW: opts.widths,
+    rowH: [headerH, ...opts.rows.map(() => bodyH)],
     border: opts.horizontalOnly
       ? [
           { type: "solid", color: t.border, pt: STROKE.hairline },
@@ -301,4 +393,6 @@ export function bandedTable(ctx: Ctx, opts: BandedTableOpts) {
       : { type: "solid", color: t.border, pt: STROKE.hairline },
     autoPage: false,
   });
+
+  return opts.h;
 }

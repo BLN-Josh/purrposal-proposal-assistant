@@ -184,6 +184,25 @@
   --sidebar-ring: #786356;
 }
 
+/*
+ * MOTION SYSTEM — three curves, and nothing else.
+ *
+ * `smooth` is the default: a long tail that decelerates hard, which is what
+ * makes an entrance read as "settled" rather than "stopped". `spring`
+ * overshoots a few percent and is reserved for things that should feel
+ * physical — a press, a check landing, a segmented pill sliding. `exit` is
+ * front-loaded, because things leaving should get out of the way quickly.
+ *
+ * Pick one of these at every call site. A hand-rolled cubic-bezier in a
+ * component is how an interface ends up with nine slightly different
+ * personalities.
+ */
+:root {
+  --ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.42, 0.5, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -193,6 +212,25 @@
   }
   html {
     @apply font-sans;
+  }
+}
+
+/*
+ * Motion is decoration here, never information: every animated element is
+ * legible at its resting state, so honouring the OS switch costs the user
+ * nothing but the flourish. Ambient loops (marquee, drifting washes) are
+ * stopped outright rather than sped up — a 0.01ms infinite loop still burns
+ * a compositor thread.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 
@@ -265,12 +303,30 @@
   }
 }
 
-@utility animate-marquee {
-  animation: marquee 38s linear infinite;
+@keyframes marquee-reverse {
+  from {
+    transform: translateX(-50%);
+  }
+  to {
+    transform: translateX(0);
+  }
 }
 
-/* One elevation, used everywhere something needs to read as "raised" —
-   never invent a second shadow depth. */
+/* Both tracks hold the same list twice, so -50% is exactly one seam. The
+   second row runs the other way and slower — two rows drifting apart reads
+   as a deck being flipped through, where one row alone reads as a ticker. */
+@utility animate-marquee {
+  animation: marquee 44s linear infinite;
+}
+
+@utility animate-marquee-reverse {
+  animation: marquee-reverse 58s linear infinite;
+}
+
+/* Three elevations and no more: `soft` for anything sitting on the ground,
+   `soft-lg` for a panel, `lift` only as the hover partner of `soft-lg`.
+   Every shadow is tinted with the espresso foreground rather than black —
+   a neutral-grey shadow on a cream ground reads as dirt. */
 @utility shadow-soft {
   box-shadow: 0 1px 2px rgba(47, 16, 0, 0.08);
 }
@@ -279,6 +335,153 @@
   box-shadow:
     0 1px 2px rgba(47, 16, 0, 0.06),
     0 12px 28px -12px rgba(47, 16, 0, 0.16);
+}
+
+@utility shadow-lift {
+  box-shadow:
+    0 2px 4px rgba(47, 16, 0, 0.05),
+    0 20px 44px -18px rgba(47, 16, 0, 0.24);
+}
+
+/* ── Entrances ───────────────────────────────────────────────────────────
+   All three read `--d` for their delay, so a stagger is set at the call
+   site (`style={delay(120)}`) instead of needing a utility per step. */
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+  }
+}
+
+@utility animate-rise {
+  animation: rise-in 720ms var(--ease-smooth) backwards;
+  animation-delay: var(--d, 0ms);
+}
+
+/* Each headline word rides up out of a clipping mask — the tilt is what
+   separates it from a plain slide-up and makes it read as typeset. */
+@keyframes word-up {
+  from {
+    opacity: 0;
+    transform: translateY(0.85em) rotate(3deg);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@utility animate-word-up {
+  animation: word-up 820ms var(--ease-smooth) backwards;
+  animation-delay: var(--d, 0ms);
+}
+
+/* A marker swipe, drawn left-to-right under the accent word. */
+@keyframes draw-x {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@utility animate-draw-x {
+  transform-origin: left center;
+  animation: draw-x 760ms var(--ease-smooth) backwards;
+  animation-delay: var(--d, 0ms);
+}
+
+@keyframes pop-check {
+  0% {
+    opacity: 0;
+    transform: scale(0.2) rotate(-30deg);
+  }
+  62% {
+    opacity: 1;
+    transform: scale(1.18) rotate(5deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+@utility animate-pop-check {
+  animation: pop-check 440ms var(--ease-spring) backwards;
+}
+
+/* ── Ambient loops ───────────────────────────────────────────────────────
+   Long, prime-ish periods so the two washes never visibly re-sync. */
+
+@keyframes drift-a {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(5%, -4%, 0) scale(1.12);
+  }
+}
+
+@keyframes drift-b {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1.08);
+  }
+  50% {
+    transform: translate3d(-6%, 5%, 0) scale(0.94);
+  }
+}
+
+@utility animate-drift-a {
+  animation: drift-a 23s ease-in-out infinite;
+}
+
+@utility animate-drift-b {
+  animation: drift-b 31s ease-in-out infinite;
+}
+
+/* Indeterminate progress: a band that sweeps the track. Honest for work of
+   unknown duration — a bar that creeps to 90% and waits is a lie. */
+@keyframes track-sweep {
+  0% {
+    transform: translateX(-100%) scaleX(0.35);
+  }
+  50% {
+    transform: translateX(60%) scaleX(0.7);
+  }
+  100% {
+    transform: translateX(240%) scaleX(0.35);
+  }
+}
+
+@utility animate-track-sweep {
+  animation: track-sweep 1.9s var(--ease-smooth) infinite;
+}
+
+/* The live-status dot: a ring that expands out of it and fades. */
+@keyframes halo {
+  0% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  70%,
+  100% {
+    opacity: 0;
+    transform: scale(2.6);
+  }
+}
+
+@utility animate-halo {
+  animation: halo 2.8s var(--ease-smooth) infinite;
 }
 
 /* Landing hero — a whisper of grain + a warm glow behind the wordmark,

@@ -1,11 +1,23 @@
 import mammoth from "mammoth";
 import { PDFParse } from "pdf-parse";
 import JSZip from "jszip";
-import { MAX_FILE_BYTES, UNSUPPORTED_FILE_MESSAGE } from "@/config/upload";
+import {
+  MAX_FILE_BYTES,
+  MULTIPART_OVERHEAD_BYTES,
+  UNSUPPORTED_FILE_MESSAGE,
+  exceedsDeclaredSize,
+} from "@/config/upload";
 
 export const dynamic = "force-dynamic";
 
 const READ_FAILURE = `Couldn't read that file. ${UNSUPPORTED_FILE_MESSAGE}`;
+const OVERSIZE_MESSAGE = `Keep the source document under ${MAX_FILE_BYTES / (1024 * 1024)}MB.`;
+
+/** Recommending a different format is useless advice when the format was
+ * fine and the file simply had no text in it — a blank .txt, or a scan with
+ * no text layer. */
+const NO_TEXT_FOUND =
+  "That file has no readable text in it. If it's a scan or an image-only PDF, paste the text directly.";
 
 /** Bare-bones PPTX text extraction: a .pptx is a zip of XML parts, and each
  * slide's visible text sits in <a:t> runs — good enough to feed an LLM
@@ -48,16 +60,21 @@ function decodeXmlEntities(s: string): string {
  * can't clobber each other (Technical Design Document §6.2).
  */
 export async function POST(request: Request) {
+  // `file.size` can only be consulted after formData() has already buffered
+  // the whole upload — a 2GB post would be paid for in full before being
+  // refused. The declared envelope size is the one bound available first;
+  // it carries the multipart framing as well as the file, hence the slack.
+  if (exceedsDeclaredSize(request, MAX_FILE_BYTES + MULTIPART_OVERHEAD_BYTES)) {
+    return Response.json({ error: OVERSIZE_MESSAGE }, { status: 413 });
+  }
+
   const formData = await request.formData().catch(() => null);
   const file = formData?.get("file");
   if (!file || !(file instanceof File)) {
     return Response.json({ error: "No file provided." }, { status: 400 });
   }
   if (file.size > MAX_FILE_BYTES) {
-    return Response.json(
-      { error: `Keep the source document under ${MAX_FILE_BYTES / (1024 * 1024)}MB.` },
-      { status: 400 }
-    );
+    return Response.json({ error: OVERSIZE_MESSAGE }, { status: 413 });
   }
 
   const ext = file.name.split(".").pop()?.toLowerCase();
@@ -86,7 +103,7 @@ export async function POST(request: Request) {
     }
 
     if (!extractedText.trim()) {
-      return Response.json({ error: READ_FAILURE }, { status: 422 });
+      return Response.json({ error: NO_TEXT_FOUND }, { status: 422 });
     }
 
     return Response.json({ extractedText });

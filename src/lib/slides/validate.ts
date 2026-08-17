@@ -6,16 +6,25 @@ import { estimateTextHeight } from "@/lib/pptx/helpers";
  * The deck linter from `balerion-deck-system.md` §9.
  *
  * Division of labour with zod: the schema enforces everything *structural*
- * (section label is in the enum, 4–5 summary rows, exactly one recommended
- * option, payment percentages are numbers) because those must hold for the
- * deck to render at all. This file enforces everything *editorial* — word
- * budgets, duplicate assertions, unresolved placeholders, money appearing
- * where it shouldn't. Those are warnings a human should see, not parse
- * failures, so they never block an export.
+ * (section label is in the enum, 4–5 summary rows, payment percentages are
+ * numbers) because those must hold for the deck to render at all. This file
+ * enforces everything *editorial* — word budgets, duplicate assertions,
+ * unresolved placeholders, money appearing where it shouldn't. Those are
+ * warnings a human should see, not parse failures, so they never block an
+ * export.
+ *
+ * Two rules belong to neither side. "Exactly one recommended option" and
+ * "cells aligned to criteria" are structural, but a zod discriminated union
+ * cannot hold refined members — so the `.refine()`s on `ComparisonContent`
+ * never ran on any path that actually parsed a slide. They are repaired in
+ * lib/slides/repair.ts instead, on both the generate and edit paths.
  *
  * Spec rules deliberately not implemented, and why:
- *  - V03 (section label enum), V06 (option count / one recommended):
- *    already unrepresentable thanks to the zod schema.
+ *  - V03 (section label enum): unrepresentable thanks to the zod enum.
+ *  - V06 (option count / one recommended): the count is bounded by the
+ *    schema; the "exactly one recommended" half is repaired in
+ *    lib/slides/repair.ts on both the generate and edit paths, so a
+ *    violation cannot reach this file.
  *  - V12 (one accent family per slide): structurally guaranteed — a slide
  *    carries a single `domain`, so it cannot mix families.
  *  - V09 (UND-07 row cap), V15 (domain mirroring §4↔§6): those layouts and
@@ -250,6 +259,62 @@ export function lintDeck(slides: Slide[]): Finding[] {
       });
     }
   }
+
+  /**
+   * Deck-level structural checks.
+   *
+   * These three were blind spots: a deck could carry duplicate ids, two
+   * covers, or an entirely blank slide and lint completely clean. Each is
+   * invisible in the preview but breaks something downstream — which is
+   * exactly the class of defect a linter exists to catch before an export.
+   */
+
+  // V17 — duplicate ids. The renderers key by array index, so a collision is
+  // silent on screen, but `sel`/`flash`/`errIds` are id-based and every one
+  // of them would then address two slides at once.
+  const idFirstSeen = new Map<string, number>();
+  slides.forEach((s, i) => {
+    const first = idFirstSeen.get(s.id);
+    if (first === undefined) {
+      idFirstSeen.set(s.id, i);
+      return;
+    }
+    findings.push({
+      rule: "V17",
+      severity: "error",
+      slideIndex: i,
+      slideId: s.id,
+      message: `Duplicate slide id "${s.id}" — also used by slide ${first + 1}. Selecting or editing either one hits both.`,
+    });
+  });
+
+  // V18 — a deck has exactly one cover.
+  const covers = slides.flatMap((s, i) => (s.kind === "title" ? [i] : []));
+  if (covers.length > 1) {
+    findings.push({
+      rule: "V18",
+      severity: "error",
+      slideIndex: covers[1],
+      slideId: slides[covers[1]].id,
+      message: `Deck has ${covers.length} cover slides (positions ${covers.map((i) => i + 1).join(", ")}); it should have exactly one.`,
+    });
+  }
+
+  // V19 — a slide with no readable text at all. `textsOf` filters falsy
+  // strings, so an all-empty slide produced an empty list and every
+  // text-based rule above simply had nothing to fire on.
+  slides.forEach((s, i) => {
+    if (s.kind === "placeholder") return;
+    const hasText = textsOf(s).some((t) => t.trim().length > 0);
+    if (hasText) return;
+    findings.push({
+      rule: "V19",
+      severity: "error",
+      slideIndex: i,
+      slideId: s.id,
+      message: `Slide ${i + 1} has no text on it — it would export as an empty ${s.kind} layout.`,
+    });
+  });
 
   return findings;
 }

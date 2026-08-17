@@ -25,12 +25,35 @@ function nowLabel() {
   return new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 }
 
-function labelFor(sel: string[], slides: Slide[]): string {
+/**
+ * How many slide numbers are spelled out before the list is elided.
+ *
+ * Past a handful, the run stops being something anyone reads and starts
+ * being a layout problem: "Slides 1, 2, 3, … 20" overflowed the composer's
+ * selection badge and squeezed the timestamp out of every edit-history row.
+ * Five is enough to recognise a small selection at a glance; beyond that the
+ * count is what matters, not the individual numbers.
+ */
+const MAX_LISTED_SLIDES = 5;
+
+/**
+ * Human label for a selection: "Slide 3", "Slides 1, 2, 4", or an elided
+ * "Slides 1, 2, 3, 4, 5…" once the run passes `limit`. Pass `Infinity` for
+ * the unabridged list — the composer badge uses it as a tooltip so the exact
+ * selection is still recoverable without it being on screen.
+ */
+function labelFor(
+  sel: string[],
+  slides: Slide[],
+  limit: number = MAX_LISTED_SLIDES,
+): string {
   const nums = slides
     .map((s, i) => (sel.includes(s.id) ? i + 1 : null))
     .filter((n): n is number => n !== null);
   if (!nums.length) return "Whole deck";
-  return nums.length === 1 ? `Slide ${nums[0]}` : `Slides ${nums.join(", ")}`;
+  if (nums.length === 1) return `Slide ${nums[0]}`;
+  if (nums.length <= limit) return `Slides ${nums.join(", ")}`;
+  return `Slides ${nums.slice(0, limit).join(", ")}…`;
 }
 
 interface AppState {

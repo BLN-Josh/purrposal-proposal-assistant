@@ -62,16 +62,31 @@ export function textColorFor(bgHex: string): string {
   return 1.05 / (lum + 0.05) >= 2.8 ? "FFFFFF" : "000000";
 }
 
-/** Spec §1.1. pptxgenjs `LAYOUT_WIDE`. */
+/**
+ * Spec §1.1. pptxgenjs `LAYOUT_WIDE`.
+ *
+ * These are derived from the on-screen renderer rather than chosen
+ * independently, because the preview is the contract: the editor sizes every
+ * slide in `cqw` (1% of the slide's own width), and at 16:9 the slide is
+ * exactly 13.333in wide — so 1cqw is 0.13333in and the two can be reconciled
+ * exactly. The frame's `p-[5cqw]` is the margin below, and `bandTop` is where
+ * the renderer's title block ends plus its `mt-[2cqw]` gap.
+ *
+ * Change a value here and you must change its `cqw` counterpart in
+ * `slide-primitives.tsx`, or the export drifts from what the user approved.
+ */
 export const PAGE = {
   w: 13.333,
   h: 7.5,
-  marginX: 0.55,
-  marginTop: 0.3,
-  marginBottom: 0.45,
-  /** Spec: titles never intrude below 1.0in; nothing renders past 6.85in. */
-  bandTop: 1.05,
-  bandBottom: 6.85,
+  /** 5cqw — matches the renderer frame's padding. */
+  marginX: 0.667,
+  marginTop: 0.667,
+  marginBottom: 0.667,
+  /** marginTop + the two-line title block + the renderer's 2cqw body gap. */
+  bandTop: 1.95,
+  bandBottom: 6.83,
+  /** Height reserved for the two-line title, at the type sizes below. */
+  titleH: 1.02,
 } as const;
 
 export const STROKE = { hairline: 0.75, accent: 1.0 } as const;
@@ -176,12 +191,22 @@ export function resolveTheme(o: DeckThemeOverrides = {}): ResolvedTheme {
   };
 }
 
-/** Spec §1.3 type ramp. Sizes are pt; every role is Arial (the source decks
- * use exactly one family — there is no secondary typeface anywhere). */
+/**
+ * Spec §1.3 type ramp. Sizes are pt; every role is Arial (the source decks
+ * use exactly one family — there is no secondary typeface anywhere).
+ *
+ * Sizes are the renderer's `cqw` values converted at 1cqw = 0.13333in =
+ * 9.6pt, so the exported slide carries the same hierarchy as the preview.
+ * The assertion in particular used to export at the section label's 14pt
+ * while the renderer set it at 2.5cqw ≈ 24pt — the line that is supposed to
+ * dominate the slide came out the same size as its own kicker.
+ */
 export const TYPE = {
-  sectionLabel: { size: 14, bold: true },
-  assertion: { size: 14, bold: true },
-  coverTitle: { size: 16, bold: true },
+  /** 1.3cqw */
+  sectionLabel: { size: 12, bold: true },
+  /** 2.5cqw — the slide's conclusion, and the largest type on it. */
+  assertion: { size: 23, bold: true },
+  coverTitle: { size: 26, bold: true },
   coverDate: { size: 14, bold: true },
   boxHeading: { size: 10, bold: true },
   tableHeader: { size: 8, bold: true },
@@ -194,7 +219,7 @@ export const TYPE = {
 } as const;
 
 /** Spec §1.4: logo top-right on every non-cover slide. */
-export const LOGO = { x: 11.9, y: 0.2, w: 0.95, aspect: 603 / 105 } as const;
+export const LOGO = { x: 11.35, y: 0.4, w: 1.45, aspect: 603 / 105 } as const;
 
 export const LIGHT_MASTER = "BLN_LIGHT";
 export const DARK_MASTER = "BLN_DARK";

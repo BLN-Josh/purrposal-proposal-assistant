@@ -20,7 +20,8 @@ import {
   executionMethodologyPrompt,
   executiveSummaryPrompt,
 } from "./prompts";
-import { Deck, type Slide, type FeatureRow, type ComparisonContent } from "@/lib/slides/schema";
+import { Deck, type Slide, type FeatureRow } from "@/lib/slides/schema";
+import { repairComparison } from "@/lib/slides/repair";
 import type { GenerateRequest } from "@/lib/api-types";
 
 export type ProgressEmitter = (step: string, label: string) => void;
@@ -33,36 +34,6 @@ function sumWeeks(phases: { weeks: string }[]): string {
   return total > 0 ? `${total} weeks` : `${phases.length} phases`;
 }
 
-/**
- * Deck-system spec V06 requires exactly one recommended option. That rule is
- * kept out of the tool schema on purpose: a zod refinement failure costs a
- * whole model round-trip, whereas the correct answer is knowable here
- * without one. If the model marks none or several, keep the last option —
- * the source decks always place the recommended column last (spec §4.10
- * "the recommended column is last").
- */
-function normalizeRecommended(content: ComparisonContent): ComparisonContent {
-  const flagged = content.options.filter((o) => o.recommended).length;
-  if (flagged === 1) return content;
-  const lastIdx = content.options.length - 1;
-  return {
-    ...content,
-    options: content.options.map((o, i) => ({ ...o, recommended: i === lastIdx })),
-  };
-}
-
-/** Trim or pad each option's verdict list so it stays index-aligned to the
- * criteria — a mismatch would silently blank cells in the matrix. */
-function alignCells(content: ComparisonContent): ComparisonContent {
-  const n = content.criteria.length;
-  return {
-    ...content,
-    options: content.options.map((o) => ({
-      ...o,
-      cells: Array.from({ length: n }, (_, i) => o.cells[i] ?? "—"),
-    })),
-  };
-}
 
 /**
  * FR-3.1's section pipeline. Executive Summary is always generated last even
@@ -108,7 +79,7 @@ export async function runGenerationPipeline(
       ...optionAnalysisPrompt(brief, fileText, config, depth),
     }),
   ]);
-  const optionAnalysis = { ...optionAnalysisRaw, ...alignCells(normalizeRecommended(optionAnalysisRaw)) };
+  const optionAnalysis = { ...optionAnalysisRaw, ...repairComparison(optionAnalysisRaw) };
   emit("understanding", "Project understanding · option analysis");
 
   const solutionProposal = await generateStructured({

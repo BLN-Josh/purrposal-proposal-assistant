@@ -9,8 +9,19 @@ import type { ProjectUnderstandingOutput, SolutionProposalOutput, OptionAnalysis
 // RFP) isn't reduced to just its first couple of pages.
 const MAX_FILE_CONTEXT = 24000;
 
+// The brief is short, human-typed text — but unlike the source document it
+// rides into *every* call in the pipeline, so an unbounded one is billed six
+// times over from an unauthenticated endpoint. This is several times the
+// longest brief anyone types; text past it is a document, and a document
+// belongs in the (larger) source slot above.
+const MAX_BRIEF_CONTEXT = 8000;
+
+function clampBrief(brief: string): string {
+  return brief.trim().slice(0, MAX_BRIEF_CONTEXT);
+}
+
 function briefContext(brief: string, fileText?: string | null): string {
-  const parts = [`CLIENT BRIEF:\n${brief.trim()}`];
+  const parts = [`CLIENT BRIEF:\n${clampBrief(brief)}`];
   if (fileText && fileText.trim()) {
     parts.push(`SOURCE DOCUMENT EXCERPT:\n${fileText.trim().slice(0, MAX_FILE_CONTEXT)}`);
   }
@@ -192,7 +203,7 @@ export function executiveSummaryPrompt(params: {
   return {
     system: `You are a technology-consulting proposal writer drafting the "Executive Summary" — the whole proposal on one slide, and the most important slide in the deck. It is generated last, after every other section. ${COMMON_RULES}\n\n${ASSERTION_RULES}`,
     prompt: `Client: ${params.clientName}
-Brief: ${params.brief.trim()}
+Brief: ${clampBrief(params.brief)}
 Recommended approach: ${recommended?.name ?? "the recommended option"}
 Solution scope: ${params.solutionProposal.rows.map((r) => r.label ?? r.text).join(", ")}
 Total execution time: ${params.totalWeeks}
