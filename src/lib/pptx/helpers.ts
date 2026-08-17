@@ -1,5 +1,12 @@
 import pptxgen from "pptxgenjs";
-import { PAGE, TYPE, GAP, STROKE, textColorFor, type ResolvedTheme } from "./theme";
+import {
+  PAGE,
+  TYPE,
+  GAP,
+  STROKE,
+  textColorFor,
+  type ResolvedTheme,
+} from "./theme";
 
 /**
  * The reusable primitives from `balerion-deck-system.md` §7. The spec's own
@@ -16,13 +23,19 @@ export interface Ctx {
 }
 
 /** Accent family for a slide (spec §1.2: exactly one per slide). */
-export function accentFor(t: ResolvedTheme, domain?: "primary" | "secondary" | "neutral"): string {
+export function accentFor(
+  t: ResolvedTheme,
+  domain?: "primary" | "secondary" | "neutral",
+): string {
   if (domain === "secondary") return t.accentSecondary;
   if (domain === "neutral") return t.gray500;
   return t.accent;
 }
 
-export function tintFor(t: ResolvedTheme, domain?: "primary" | "secondary" | "neutral"): string {
+export function tintFor(
+  t: ResolvedTheme,
+  domain?: "primary" | "secondary" | "neutral",
+): string {
   if (domain === "secondary") return t.tintSecondary;
   if (domain === "neutral") return t.tintNeutral;
   return t.tintPrimary;
@@ -36,34 +49,36 @@ export function tintFor(t: ResolvedTheme, domain?: "primary" | "secondary" | "ne
  * (spec V14) and to decide when a row needs to grow; NOT exact, so builders
  * that use it leave headroom rather than packing to the last pixel.
  */
-export function estimateTextHeight(text: string, widthIn: number, fontSizePt: number): number {
+export function estimateTextHeight(
+  text: string,
+  widthIn: number,
+  fontSizePt: number,
+): number {
   const emIn = fontSizePt / 72;
   const charsPerLine = Math.max(1, Math.floor(widthIn / (emIn * 0.5)));
   const lines = text
     .split("\n")
-    .reduce((sum, para) => sum + Math.max(1, Math.ceil(para.length / charsPerLine)), 0);
+    .reduce(
+      (sum, para) => sum + Math.max(1, Math.ceil(para.length / charsPerLine)),
+      0,
+    );
   return lines * emIn * 1.2;
 }
 
 /**
  * The largest size at or below `baseSize` whose text still fits `heightIn`.
  *
- * PowerPoint's own "shrink text on overflow" only recalculates when the shape
- * is edited — pptxgenjs cannot trigger it, so a file that relies on it alone
- * opens overflowing and tidies itself only if the user happens to click the
- * box. Sizing here instead means the deck is correct the moment it opens, and
- * `fit: "shrink"` is still set alongside so PowerPoint refines from a good
- * starting point rather than a broken one.
- *
- * Steps down in half-points because a 0.5pt change is invisible per-slide but
- * compounds to a whole line over a paragraph.
+ * PowerPoint's "shrink text on overflow" only recalculates on edit and
+ * pptxgenjs cannot trigger it, so relying on it alone means the file opens
+ * overflowing. Sizing here makes the deck correct the moment it opens;
+ * `fit: "shrink"` is set alongside so PowerPoint refines from there.
  */
 export function fitFontSize(
   text: string,
   widthIn: number,
   heightIn: number,
   baseSize: number,
-  minSize = 6
+  minSize = 6,
 ): number {
   let size = baseSize;
   while (size > minSize && estimateTextHeight(text, widthIn, size) > heightIn) {
@@ -89,7 +104,12 @@ function longestCell(rows: BandedTableOpts["rows"], colIndex: number): string {
  */
 export function titleBlock(
   ctx: Ctx,
-  opts: { sectionLabel: string; assertion: string; page?: { n: number; m: number }; accent?: string }
+  opts: {
+    sectionLabel: string;
+    assertion: string;
+    page?: { n: number; m: number };
+    accent?: string;
+  },
 ) {
   const { slide, t } = ctx;
   const accent = opts.accent ?? t.accent;
@@ -97,11 +117,8 @@ export function titleBlock(
   const w = PAGE.w - PAGE.marginX * 2;
   const h = PAGE.titleH;
 
-  // Two sizes, not one. The renderer sets the kicker at 1.3cqw and the
-  // assertion at 2.5cqw, so exporting both at a single size flattened the
-  // one piece of hierarchy this layout has. The assertion still shrinks to
-  // fit — it is the line most likely to run long — but only down to the
-  // point where it is still clearly larger than its own label.
+  // Two sizes, matching the renderer's 1.3cqw kicker and 2.5cqw assertion.
+  // The assertion shrinks to fit, but never below its own label.
   const labelSize = TYPE.sectionLabel.size;
   const labelH = (labelSize / 72) * 1.25;
   const assertionSize = fitFontSize(
@@ -109,14 +126,19 @@ export function titleBlock(
     w,
     h - labelH,
     TYPE.assertion.size,
-    labelSize + 2
+    labelSize + 2,
   );
 
   slide.addText(
     [
       {
         text: `${opts.sectionLabel.toUpperCase()}:`,
-        options: { color: accent, bold: true, breakLine: true, fontSize: labelSize },
+        options: {
+          color: accent,
+          bold: true,
+          breakLine: true,
+          fontSize: labelSize,
+        },
       },
       {
         text: `${opts.assertion.toUpperCase()}${suffix}`,
@@ -132,7 +154,7 @@ export function titleBlock(
       valign: "top",
       fit: "shrink",
       lineSpacingMultiple: 0.95,
-    }
+    },
   );
 }
 
@@ -142,22 +164,41 @@ export function titleBlock(
 export function banner(
   ctx: Ctx,
   opts: {
-    x?: number; y: number; w?: number; h?: number;
-    text: string; fill: string; align?: "left" | "center";
-    size?: number; italic?: boolean;
-  }
+    x?: number;
+    y: number;
+    w?: number;
+    h?: number;
+    text: string;
+    fill: string;
+    align?: "left" | "center";
+    size?: number;
+    italic?: boolean;
+  },
 ) {
   const { slide, pptx, t } = ctx;
   const x = opts.x ?? PAGE.marginX;
   const w = opts.w ?? PAGE.w - PAGE.marginX * 2;
   const h = opts.h ?? 0.32;
-  slide.addShape(pptx.ShapeType.rect, { x, y: opts.y, w, h, fill: { color: opts.fill }, line: { color: opts.fill } });
+  slide.addShape(pptx.ShapeType.rect, {
+    x,
+    y: opts.y,
+    w,
+    h,
+    fill: { color: opts.fill },
+    line: { color: opts.fill },
+  });
   slide.addText(opts.text, {
     x: x + 0.12,
     y: opts.y,
     w: w - 0.24,
     h,
-    fontSize: fitFontSize(opts.text, w - 0.24, h, opts.size ?? TYPE.bannerText.size, 7),
+    fontSize: fitFontSize(
+      opts.text,
+      w - 0.24,
+      h,
+      opts.size ?? TYPE.bannerText.size,
+      7,
+    ),
     italic: opts.italic,
     color: textColorFor(opts.fill),
     align: opts.align ?? "center",
@@ -194,7 +235,7 @@ export function rowLabelStack(
     contentFill?: string;
     contentSize?: number;
     gap?: number;
-  }
+  },
 ) {
   const { slide, pptx, t } = ctx;
   const gap = opts.gap ?? GAP.normal;
@@ -210,21 +251,36 @@ export function rowLabelStack(
 
     if (row.label !== undefined) {
       slide.addShape(pptx.ShapeType.rect, {
-        x: PAGE.marginX, y, w: opts.labelW, h: rowH,
-        fill: { color: opts.labelFill }, line: { color: opts.labelFill },
+        x: PAGE.marginX,
+        y,
+        w: opts.labelW,
+        h: rowH,
+        fill: { color: opts.labelFill },
+        line: { color: opts.labelFill },
       });
       slide.addText(row.label, {
-        x: PAGE.marginX + 0.08, y, w: opts.labelW - 0.16, h: rowH,
-        fontSize: labelSize, bold: true, color: textColorFor(opts.labelFill),
-        align: "center", valign: "middle", fontFace: t.font,
+        x: PAGE.marginX + 0.08,
+        y,
+        w: opts.labelW - 0.16,
+        h: rowH,
+        fontSize: labelSize,
+        bold: true,
+        color: textColorFor(opts.labelFill),
+        align: "center",
+        valign: "middle",
+        fontFace: t.font,
       });
     }
 
     const bodyX = row.label === undefined ? PAGE.marginX : contentX;
-    const bodyW = row.label === undefined ? PAGE.w - PAGE.marginX * 2 : contentW;
+    const bodyW =
+      row.label === undefined ? PAGE.w - PAGE.marginX * 2 : contentW;
 
     slide.addShape(pptx.ShapeType.rect, {
-      x: bodyX, y, w: bodyW, h: rowH,
+      x: bodyX,
+      y,
+      w: bodyW,
+      h: rowH,
       fill: { color: opts.contentFill ?? t.white },
       line: { color: t.border, width: STROKE.hairline },
     });
@@ -239,10 +295,29 @@ export function rowLabelStack(
         const boxSize = fitFontSize(boxText, boxW, rowH - 0.12, contentSize, 6);
         slide.addText(
           [
-            { text: box.heading, options: { bold: true, breakLine: true, fontSize: Math.max(boxSize, TYPE.boxHeading.size - 1) } },
-            ...box.bullets.map((b) => ({ text: b, options: { bullet: true, fontSize: boxSize } })),
+            {
+              text: box.heading,
+              options: {
+                bold: true,
+                breakLine: true,
+                fontSize: Math.max(boxSize, TYPE.boxHeading.size - 1),
+              },
+            },
+            ...box.bullets.map((b) => ({
+              text: b,
+              options: { bullet: true, fontSize: boxSize },
+            })),
           ],
-          { x: bx, y: y + 0.06, w: boxW, h: rowH - 0.12, color: t.black, fontFace: t.font, valign: "top", fit: "shrink" }
+          {
+            x: bx,
+            y: y + 0.06,
+            w: boxW,
+            h: rowH - 0.12,
+            color: t.black,
+            fontFace: t.font,
+            valign: "top",
+            fit: "shrink",
+          },
         );
       });
       return;
@@ -254,12 +329,23 @@ export function rowLabelStack(
         ? row.lines.map((line) => ({ text: line, options: { bullet: true } }))
         : (row.lines[0] ?? ""),
       {
-        x: bodyX + 0.12, y, w: bodyW - 0.24, h: rowH,
-        // Bullets add a hanging indent the estimator can't see, so the usable
-        // width is discounted rather than measured.
-        fontSize: fitFontSize(bodyText, (bodyW - 0.24) * (row.lines.length > 1 ? 0.92 : 1), rowH - 0.08, contentSize, 6),
-        color: t.black, valign: "middle", fontFace: t.font, fit: "shrink",
-      }
+        x: bodyX + 0.12,
+        y,
+        w: bodyW - 0.24,
+        h: rowH,
+        // Bullets add a hanging indent the estimator can't see.
+        fontSize: fitFontSize(
+          bodyText,
+          (bodyW - 0.24) * (row.lines.length > 1 ? 0.92 : 1),
+          rowH - 0.08,
+          contentSize,
+          6,
+        ),
+        color: t.black,
+        valign: "middle",
+        fontFace: t.font,
+        fit: "shrink",
+      },
     );
   });
 }
@@ -273,7 +359,14 @@ export function rowLabelStack(
  */
 export function chevronRibbon(
   ctx: Ctx,
-  opts: { stages: { label: string; fill: string }[]; x?: number; y: number; w?: number; h?: number; size?: number }
+  opts: {
+    stages: { label: string; fill: string }[];
+    x?: number;
+    y: number;
+    w?: number;
+    h?: number;
+    size?: number;
+  },
 ) {
   const { slide, pptx, t } = ctx;
   const x0 = opts.x ?? PAGE.marginX;
@@ -286,14 +379,24 @@ export function chevronRibbon(
   opts.stages.forEach((stage, i) => {
     const x = x0 + i * (stageW - overlap);
     slide.addShape(pptx.ShapeType.homePlate, {
-      x, y: opts.y, w: stageW, h,
-      fill: { color: stage.fill }, line: { color: stage.fill },
+      x,
+      y: opts.y,
+      w: stageW,
+      h,
+      fill: { color: stage.fill },
+      line: { color: stage.fill },
     });
     slide.addText(stage.label, {
-      x, y: opts.y, w: stageW - 0.16, h,
+      x,
+      y: opts.y,
+      w: stageW - 0.16,
+      h,
       fontSize: opts.size ?? TYPE.boxHeading.size,
-      bold: true, color: textColorFor(stage.fill),
-      align: "center", valign: "middle", fontFace: t.font,
+      bold: true,
+      color: textColorFor(stage.fill),
+      align: "center",
+      valign: "middle",
+      fontFace: t.font,
     });
   });
 }
@@ -305,12 +408,10 @@ export interface BandedTableOpts {
   x?: number;
   y: number;
   /**
-   * Total height the table must occupy. Required, and the single most
-   * important option here: without it pptxgenjs emits `<a:tr h="0">` for
-   * every row and PowerPoint grows each one to fit its text. The table then
-   * ends wherever the content happens to put it, while the builder places
-   * the next element using a height it merely guessed — which is why stacked
-   * blocks used to overlap and footnotes landed under the table.
+   * Total height the table must occupy. Required: without it pptxgenjs emits
+   * `<a:tr h="0">` and PowerPoint grows each row to fit, so the table ends
+   * wherever the content lands while the builder positions the next element
+   * from a guess — which is how stacked blocks came to overlap.
    */
   h: number;
   headerFill: string;
@@ -334,26 +435,31 @@ export function bandedTable(ctx: Ctx, opts: BandedTableOpts): number {
   const { slide, t } = ctx;
   const headerSize = opts.headerSize ?? TYPE.tableHeader.size;
 
-  // Header keeps a fixed band; the body splits what is left equally. Equal
-  // rows are what make the table's end position predictable — the price is
-  // that a text-heavy row cannot borrow height from a sparse one, which is
-  // what the per-column shrink below pays for instead.
+  // Equal body rows are what make the table's end position predictable; the
+  // per-column shrink below pays for a text-heavy row not being able to
+  // borrow height from a sparse one.
   const headerH = Math.min(0.34, opts.h * 0.2);
   const bodyH = opts.rows.length ? (opts.h - headerH) / opts.rows.length : 0;
 
-  // One size for the whole table, driven by whichever column is worst off:
-  // a table whose columns each shrank independently reads as a ransom note.
+  // One size for the whole table, driven by the worst-off column.
   const bodySize = opts.widths.reduce((size, colW, ci) => {
     const worst = longestCell(opts.rows, ci);
     if (!worst) return size;
-    return Math.min(size, fitFontSize(worst, colW - 0.16, bodyH - 0.08, size, 6));
+    return Math.min(
+      size,
+      fitFontSize(worst, colW - 0.16, bodyH - 0.08, size, 6),
+    );
   }, opts.bodySize ?? TYPE.tableBody.size);
 
   const headerRow: pptxgen.TableRow = opts.headers.map((h) => ({
     text: h,
     options: {
-      fontSize: headerSize, bold: true, color: textColorFor(opts.headerFill),
-      fill: { color: opts.headerFill }, fontFace: t.font, valign: "middle",
+      fontSize: headerSize,
+      bold: true,
+      color: textColorFor(opts.headerFill),
+      fill: { color: opts.headerFill },
+      fontFace: t.font,
+      valign: "middle",
     },
   }));
 
@@ -361,7 +467,8 @@ export function bandedTable(ctx: Ctx, opts: BandedTableOpts): number {
     const override = opts.rowFill?.(ri);
     return row.map((cell, ci) => {
       const isObj = typeof cell !== "string";
-      const fill = override ?? (opts.zebraColumn === ci ? t.gray100 : undefined);
+      const fill =
+        override ?? (opts.zebraColumn === ci ? t.gray100 : undefined);
       return {
         text: isObj ? cell.text : cell,
         options: {

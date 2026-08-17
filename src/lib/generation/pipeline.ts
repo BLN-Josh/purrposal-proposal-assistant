@@ -1,6 +1,11 @@
 import { generateStructured } from "@/lib/anthropic";
 import { MODULE_CATALOG } from "@/config/module-catalog";
-import { getDeckShape, getDepth, SECTION_ORDER, type SectionId } from "@/config/deck-shapes";
+import {
+  getDeckShape,
+  getDepth,
+  SECTION_ORDER,
+  type SectionId,
+} from "@/config/deck-shapes";
 import { TEAM_ROSTER } from "@/config/team-roster";
 import { CHANGE_MANAGEMENT_SLIDE } from "@/config/boilerplate";
 import { computeCommercialTerms } from "@/lib/pricing";
@@ -34,7 +39,6 @@ function sumWeeks(phases: { weeks: string }[]): string {
   return total > 0 ? `${total} weeks` : `${phases.length} phases`;
 }
 
-
 /**
  * FR-3.1's section pipeline. Executive Summary is always generated last even
  * though it displays first (§0 of the Technical Design Document / PRD
@@ -49,7 +53,7 @@ function sumWeeks(phases: { weeks: string }[]): string {
  */
 export async function runGenerationPipeline(
   req: GenerateRequest,
-  emit: ProgressEmitter
+  emit: ProgressEmitter,
 ): Promise<Deck> {
   const shape = getDeckShape(req.deckShape);
   const depth = getDepth(req.depth).id;
@@ -79,7 +83,10 @@ export async function runGenerationPipeline(
       ...optionAnalysisPrompt(brief, fileText, config, depth),
     }),
   ]);
-  const optionAnalysis = { ...optionAnalysisRaw, ...repairComparison(optionAnalysisRaw) };
+  const optionAnalysis = {
+    ...optionAnalysisRaw,
+    ...repairComparison(optionAnalysisRaw),
+  };
   emit("understanding", "Project understanding · option analysis");
 
   const solutionProposal = await generateStructured({
@@ -88,13 +95,24 @@ export async function runGenerationPipeline(
     maxTokens: 3072,
     effort: "medium",
     label: "gen:solution",
-    ...solutionProposalPrompt(brief, fileText, config, understanding, optionAnalysis, depth),
+    ...solutionProposalPrompt(
+      brief,
+      fileText,
+      config,
+      understanding,
+      optionAnalysis,
+      depth,
+    ),
   });
 
   const validKeys = new Set(config.modules.map((m) => m.key));
-  let selectedKeys = solutionProposal.selectedModuleKeys.filter((k) => validKeys.has(k));
+  let selectedKeys = solutionProposal.selectedModuleKeys.filter((k) =>
+    validKeys.has(k),
+  );
   if (!selectedKeys.length) selectedKeys = config.modules.map((m) => m.key);
-  const selectedModules = config.modules.filter((m) => selectedKeys.includes(m.key));
+  const selectedModules = config.modules.filter((m) =>
+    selectedKeys.includes(m.key),
+  );
   const selectedNames = selectedModules.map((m) => m.name);
 
   // Feature Detail is retrieval from config, not generation (PRD FR-3.1 step 4).
@@ -153,7 +171,10 @@ export async function runGenerationPipeline(
     : null;
   emit("summary", needsExecSummary ? "Executive summary" : "Assembling deck…");
 
-  const today = new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" });
+  const today = new Date().toLocaleDateString("en-US", {
+    month: "short",
+    year: "numeric",
+  });
   const deckTitle = `${understanding.projectTitle} — ${understanding.clientName}`;
   const id = () => crypto.randomUUID();
 

@@ -34,7 +34,7 @@ lives only in the browser's session for the duration of the demo.
   Commercial Terms deterministically from the rate card, then drafts the
   Executive Summary last.
 - **Edit** (`/api/edit`) — scoped, single-slide regeneration. A money-guard
-  classifies pricing-related instructions in code *before* any model call:
+  classifies pricing-related instructions in code _before_ any model call:
   a price change on a non-Commercial slide is rejected, and a price change
   on the Commercial slide only goes through if it maps to an actual scope
   addition (which recomputes the rate card total) — never a free-typed

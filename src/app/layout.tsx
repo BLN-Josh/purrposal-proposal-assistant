@@ -53,7 +53,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="flex h-full flex-col overflow-hidden bg-background text-foreground">
         <QueryProvider>{children}</QueryProvider>
-        <Toaster position="bottom-right" theme="light" offset={{ bottom: "20px" }} />
+        <Toaster
+          position="bottom-right"
+          theme="light"
+          offset={{ bottom: "20px" }}
+        />
       </body>
     </html>
   );

@@ -1,6 +1,12 @@
 import type { ValueChainSlide } from "@/lib/slides/schema";
 import { cn } from "@/lib/utils";
-import { SlideSurface, SlideTitle, SlideBody, accentFor, brandStep } from "./slide-primitives";
+import {
+  SlideSurface,
+  SlideTitle,
+  SlideBody,
+  accentFor,
+  brandStep,
+} from "./slide-primitives";
 
 const COLS = "grid-cols-[1.15fr_1fr_1fr_1fr_1.1fr]";
 
@@ -29,14 +35,16 @@ export function ValueChainSlideBody({ slide }: { slide: ValueChainSlide }) {
         <div
           className={cn(
             "grid shrink-0 gap-x-[0.7cqw] pb-[0.6cqw] font-mono text-[1.05cqw] tracking-[0.08em] uppercase",
-            COLS
+            COLS,
           )}
         >
           {HEADINGS.map((h, i) => (
             <div
               key={h}
               className={cn(
-                i === HEADINGS.length - 1 ? cn("px-[0.6cqw]", accent.text) : "text-slide-muted"
+                i === HEADINGS.length - 1
+                  ? cn("px-[0.6cqw]", accent.text)
+                  : "text-slide-muted",
               )}
             >
               {h}
@@ -61,7 +69,7 @@ export function ValueChainSlideBody({ slide }: { slide: ValueChainSlide }) {
                   className={cn(
                     "shrink-0 px-[0.7cqw] py-[0.35cqw] text-[1.15cqw] leading-[1.25] font-semibold",
                     brandStep(b).fill,
-                    brandStep(b).onFill
+                    brandStep(b).onFill,
                   )}
                 >
                   {block.caption}
@@ -74,15 +82,20 @@ export function ValueChainSlideBody({ slide }: { slide: ValueChainSlide }) {
                     key={r}
                     className={cn(
                       "grid min-h-0 flex-1 gap-x-[0.7cqw] overflow-hidden border-t border-slide-line text-[1.15cqw] leading-[1.3] text-pretty text-slide-body",
-                      COLS
+                      COLS,
                     )}
                   >
-                    <div className="py-[0.6cqw] font-semibold text-slide-ink">{row.feature}</div>
+                    <div className="py-[0.6cqw] font-semibold text-slide-ink">
+                      {row.feature}
+                    </div>
                     <div className="py-[0.6cqw]">{row.task}</div>
                     <div className="py-[0.6cqw]">{row.output}</div>
                     <div className="py-[0.6cqw]">{row.outcome}</div>
                     <div
-                      className={cn("px-[0.6cqw] py-[0.6cqw] font-medium text-slide-ink", accent.tint)}
+                      className={cn(
+                        "px-[0.6cqw] py-[0.6cqw] font-medium text-slide-ink",
+                        accent.tint,
+                      )}
                     >
                       {row.benefit}
                     </div>

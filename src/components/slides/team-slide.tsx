@@ -1,6 +1,12 @@
 import type { TeamSlide } from "@/lib/slides/schema";
 import { cn } from "@/lib/utils";
-import { SlideSurface, SlideTitle, SlideBody, accentFor, brandStep } from "./slide-primitives";
+import {
+  SlideSurface,
+  SlideTitle,
+  SlideBody,
+  accentFor,
+  brandStep,
+} from "./slide-primitives";
 
 /** EXE-06 — up to 6 profiles in a 2-column grid (3 rows). On the default
  * white surface each avatar takes the next step of the brand ramp, which is
@@ -32,7 +38,9 @@ export function TeamSlideBody({ slide }: { slide: TeamSlide }) {
               <span
                 className={cn(
                   "flex size-[3.8cqw] shrink-0 items-center justify-center rounded-full text-[1.4cqw] font-semibold",
-                  dark ? cn(accent.fill, accent.onFill) : cn(brandStep(i).fill, brandStep(i).onFill)
+                  dark
+                    ? cn(accent.fill, accent.onFill)
+                    : cn(brandStep(i).fill, brandStep(i).onFill),
                 )}
               >
                 {person.initials}
@@ -41,7 +49,7 @@ export function TeamSlideBody({ slide }: { slide: TeamSlide }) {
                 <span
                   className={cn(
                     "text-[1.6cqw] leading-[1.2] font-semibold",
-                    dark ? "text-white" : "text-slide-ink"
+                    dark ? "text-white" : "text-slide-ink",
                   )}
                 >
                   {person.name}
@@ -49,7 +57,7 @@ export function TeamSlideBody({ slide }: { slide: TeamSlide }) {
                 <span
                   className={cn(
                     "font-mono text-[1.1cqw] tracking-[0.07em] uppercase",
-                    accent.text
+                    accent.text,
                   )}
                 >
                   {person.role}
@@ -57,7 +65,7 @@ export function TeamSlideBody({ slide }: { slide: TeamSlide }) {
                 <span
                   className={cn(
                     "text-[1.15cqw] leading-[1.35] text-pretty",
-                    dark ? "text-white/65" : "text-slide-body"
+                    dark ? "text-white/65" : "text-slide-body",
                   )}
                 >
                   {person.bio}

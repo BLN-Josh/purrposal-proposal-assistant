@@ -2,18 +2,19 @@ import type { ProposalConfig } from "@/config/types";
 import type { DepthId } from "@/config/deck-shapes";
 import type { NewSlideKind, SlideKind } from "@/lib/slides/schema";
 import type { SlideOutlineEntry } from "@/lib/api-types";
-import type { ProjectUnderstandingOutput, SolutionProposalOutput, OptionAnalysisOutput } from "./schemas";
+import type {
+  ProjectUnderstandingOutput,
+  SolutionProposalOutput,
+  OptionAnalysisOutput,
+} from "./schemas";
 
 // Trivial relative to a 200k-token model context window, but large enough
 // that a genuinely long source document (a 100-page proposal, a detailed
 // RFP) isn't reduced to just its first couple of pages.
 const MAX_FILE_CONTEXT = 24000;
 
-// The brief is short, human-typed text — but unlike the source document it
-// rides into *every* call in the pipeline, so an unbounded one is billed six
-// times over from an unauthenticated endpoint. This is several times the
-// longest brief anyone types; text past it is a document, and a document
-// belongs in the (larger) source slot above.
+// The brief rides into every pipeline call, so an unbounded one is billed
+// once per stage. Longer input belongs in the source-document slot above.
 const MAX_BRIEF_CONTEXT = 8000;
 
 function clampBrief(brief: string): string {
@@ -23,13 +24,17 @@ function clampBrief(brief: string): string {
 function briefContext(brief: string, fileText?: string | null): string {
   const parts = [`CLIENT BRIEF:\n${clampBrief(brief)}`];
   if (fileText && fileText.trim()) {
-    parts.push(`SOURCE DOCUMENT EXCERPT:\n${fileText.trim().slice(0, MAX_FILE_CONTEXT)}`);
+    parts.push(
+      `SOURCE DOCUMENT EXCERPT:\n${fileText.trim().slice(0, MAX_FILE_CONTEXT)}`,
+    );
   }
   return parts.join("\n\n");
 }
 
 function moduleList(config: ProposalConfig): string {
-  return config.modules.map((m) => `- ${m.key}: ${m.name} — ${m.description}`).join("\n");
+  return config.modules
+    .map((m) => `- ${m.key}: ${m.name} — ${m.description}`)
+    .join("\n");
 }
 
 export const COMMON_RULES = `Write for a client-facing consulting proposal deck: direct, concrete, no filler adjectives, no exclamation marks. Keep every field short enough to read at a glance on a 16:9 slide. Never invent a specific price or currency figure — pricing is computed separately from a rate card.`;
@@ -56,12 +61,18 @@ The assertion is the slide's conclusion, not its topic. Rules:
 5. On any slide that recommends something, state the recommendation IN the assertion: "SEQUENTIAL ROLLOUT (OPTION 1) RECOMMENDED FOR EARLIER VALUE REALIZATION".
 6. Write it in UPPERCASE.`;
 
-const BULLET_TARGET_BY_DEPTH: Record<DepthId, number> = { concise: 3, standard: 4, detailed: 5 };
+const BULLET_TARGET_BY_DEPTH: Record<DepthId, number> = {
+  concise: 3,
+  standard: 4,
+  detailed: 5,
+};
 
 function rowGuidance(depth: DepthId): string {
   const n = BULLET_TARGET_BY_DEPTH[depth];
-  if (depth === "concise") return `${n} rows, each description max ~12 words — headline only, no elaboration.`;
-  if (depth === "detailed") return `${n} rows, each description max ~24 words with one clause of supporting detail.`;
+  if (depth === "concise")
+    return `${n} rows, each description max ~12 words — headline only, no elaboration.`;
+  if (depth === "detailed")
+    return `${n} rows, each description max ~24 words with one clause of supporting detail.`;
   return `${n} rows, each description max ~18 words.`;
 }
 
@@ -69,7 +80,7 @@ export function projectUnderstandingPrompt(
   brief: string,
   fileText: string | null | undefined,
   config: ProposalConfig,
-  depth: DepthId
+  depth: DepthId,
 ) {
   return {
     system: `You are a technology-consulting proposal writer drafting the "Project Understanding" slide. ${COMMON_RULES}\n\n${ASSERTION_RULES}`,
@@ -92,7 +103,7 @@ export function optionAnalysisPrompt(
   brief: string,
   fileText: string | null | undefined,
   config: ProposalConfig,
-  depth: DepthId
+  depth: DepthId,
 ) {
   const { extend, buy, build } = config.comparisonDefaults;
   return {
@@ -116,9 +127,11 @@ export function solutionProposalPrompt(
   config: ProposalConfig,
   understanding: ProjectUnderstandingOutput,
   optionAnalysis: OptionAnalysisOutput,
-  depth: DepthId
+  depth: DepthId,
 ) {
-  const recommended = optionAnalysis.options.find((c) => c.recommended)?.name ?? optionAnalysis.options[0]?.name;
+  const recommended =
+    optionAnalysis.options.find((c) => c.recommended)?.name ??
+    optionAnalysis.options[0]?.name;
   return {
     system: `You are a technology-consulting proposal writer drafting the "Solution Proposal" slide. ${COMMON_RULES}\n\n${ASSERTION_RULES}`,
     prompt: `${briefContext(brief, fileText)}
@@ -140,7 +153,7 @@ Produce:
 export function valueChainPrompt(
   brief: string,
   selectedModuleNames: string[],
-  depth: DepthId
+  depth: DepthId,
 ) {
   return {
     system: `You are a technology-consulting proposal writer drafting the "feature to benefit value chain" slide. ${COMMON_RULES}\n\n${ASSERTION_RULES}`,
@@ -168,7 +181,7 @@ export function executionMethodologyPrompt(
   brief: string,
   config: ProposalConfig,
   selectedModuleNames: string[],
-  depth: DepthId
+  depth: DepthId,
 ) {
   const detail =
     depth === "concise"
@@ -231,14 +244,21 @@ Produce:
  * them. Phrased as "reach for this when…" rather than "this renders…" —
  * the picker needs the selection criterion, not the geometry. */
 const LAYOUT_BRIEFS: Record<NewSlideKind, string> = {
-  bullets: "a stack of 2-6 labelled points — findings, pain points, scope items, principles. The default when the content is a list of things with short explanations.",
-  summary: "a 4-5 row executive summary, each row a labelled category with 2-4 bullets. Only for whole-proposal recaps.",
-  comparison: "an option matrix: 3-6 criteria down the side, 2-3 options across the top, exactly one recommended. Use when the slide's job is to choose between alternatives.",
-  table: "a feature detail table — rows of feature / description / details / action support. Use for module or capability specification.",
-  valueChain: "a five-column feature→task→output→outcome→benefit chain. Use only when the slide must justify scope in business-value terms.",
-  timeline: "a 3-5 phase ribbon with durations and per-phase detail. Use for plans, roadmaps, rollout sequences.",
+  bullets:
+    "a stack of 2-6 labelled points — findings, pain points, scope items, principles. The default when the content is a list of things with short explanations.",
+  summary:
+    "a 4-5 row executive summary, each row a labelled category with 2-4 bullets. Only for whole-proposal recaps.",
+  comparison:
+    "an option matrix: 3-6 criteria down the side, 2-3 options across the top, exactly one recommended. Use when the slide's job is to choose between alternatives.",
+  table:
+    "a feature detail table — rows of feature / description / details / action support. Use for module or capability specification.",
+  valueChain:
+    "a five-column feature→task→output→outcome→benefit chain. Use only when the slide must justify scope in business-value terms.",
+  timeline:
+    "a 3-5 phase ribbon with durations and per-phase detail. Use for plans, roadmaps, rollout sequences.",
   team: "a grid of 2-6 named people with roles and one-line bios.",
-  divider: "a chapter break carrying only a section name. Use when the instruction asks for a section break or a title-only slide.",
+  divider:
+    "a chapter break carrying only a section name. Use when the instruction asks for a section break or a title-only slide.",
 };
 
 /**
@@ -251,7 +271,11 @@ const LAYOUT_BRIEFS: Record<NewSlideKind, string> = {
  * runs against exactly the same single-kind schema as a normal edit, so a
  * new slide and an edited slide share one validated code path.
  */
-export function slideKindPrompt(instruction: string, outline: SlideOutlineEntry[], position: number) {
+export function slideKindPrompt(
+  instruction: string,
+  outline: SlideOutlineEntry[],
+  position: number,
+) {
   return {
     system: `You select the layout for one new slide in a client-facing technology-consulting proposal deck. Choose the layout that fits the requested content — not the one that is most impressive. When the instruction is vague, prefer "bullets": it is the most forgiving layout and reads well with almost any content.`,
     prompt: `Available layouts:
@@ -330,7 +354,7 @@ Return the complete revised slide content in the same shape.`,
 function outlineBlock(outline: SlideOutlineEntry[]): string {
   if (!outline.length) return "DECK OUTLINE: (this is the only slide.)";
   const lines = outline.map(
-    (s) => `${s.index}. [${s.kind}] ${s.assertion ?? s.title ?? "—"}`
+    (s) => `${s.index}. [${s.kind}] ${s.assertion ?? s.title ?? "—"}`,
   );
   return `DECK OUTLINE (for context — do not edit these):\n${lines.join("\n")}`;
 }

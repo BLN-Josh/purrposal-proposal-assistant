@@ -27,7 +27,10 @@ export function TimelineSlideBody({ slide }: { slide: TimelineSlide }) {
         <div className="relative flex gap-[1.4cqw]">
           <div className="absolute top-[1.1cqw] right-0 left-0 h-[0.16cqw] bg-slide-line" />
           {slide.phases.map((phase, i) => (
-            <div key={i} className="relative flex min-w-0 flex-1 flex-col gap-[0.9cqw]">
+            <div
+              key={i}
+              className="relative flex min-w-0 flex-1 flex-col gap-[0.9cqw]"
+            >
               {/* Each phase steps along the brand ramp so the row reads as
                   progression — the same walk the exported chevron ribbon
                   makes, so preview and .pptx tell the same story. */}
@@ -35,7 +38,7 @@ export function TimelineSlideBody({ slide }: { slide: TimelineSlide }) {
                 className={cn(
                   "flex size-[2.2cqw] items-center justify-center rounded-full font-mono text-[1.15cqw]",
                   brandStep(i).fill,
-                  brandStep(i).onFill
+                  brandStep(i).onFill,
                 )}
               >
                 {i + 1}
@@ -46,7 +49,7 @@ export function TimelineSlideBody({ slide }: { slide: TimelineSlide }) {
               <span
                 className={cn(
                   "font-mono text-[1.3cqw] tracking-[0.06em] uppercase",
-                  accent.text
+                  accent.text,
                 )}
               >
                 {phase.weeks}

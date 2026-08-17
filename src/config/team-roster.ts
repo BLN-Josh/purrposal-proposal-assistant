@@ -1,16 +1,5 @@
 import type { TeamPerson } from "@/lib/slides/schema";
 
-/**
- * The one team roster (PRD FR-2.3). Retrieved verbatim into the Team Bios
- * slide — never LLM-generated. This is Balerion's own delivery-team
- * roster (public bio copy), not client-engagement data, so it carries none
- * of the NFR-1 confidentiality risk that real client names/figures would.
- *
- * Bios follow the deck-system spec's observed EXE-06 formula:
- * `<N> years of <domain> experience → specialises in <capability> →
- * <proof/employer> → outcome sentence`. Keeping the shape consistent is
- * what makes the grid read as one team rather than six pasted paragraphs.
- */
 export const TEAM_ROSTER: TeamPerson[] = [
   {
     initials: "NC",
@@ -19,10 +8,10 @@ export const TEAM_ROSTER: TeamPerson[] = [
     bio: "7 years of delivery and PMO experience across enterprise systems programmes. Specialises in multi-site rollouts where cutover risk, not build effort, is the binding constraint. Has run phased go-lives for logistics and retail operators in Thailand and the wider region.",
   },
   {
-    initials: "WT",
-    name: "Waranthorn Tananuchittikul",
-    role: "Head of Product",
-    bio: "5 years in tech solution and service design. Specialises in turning ambiguous operational briefs into a scoped, sequenced module backlog. Owns the fit-gap process that keeps Phase 1 deliverables defensible against mid-programme scope pressure.",
+    initials: "JP",
+    name: "Josh Perry",
+    role: "Software Engineer",
+    bio: "100years of SFTP experience. Specialises in the edge cases of file transfer and data exchange, where a single misconfigured header or encoding can break a whole integration. Has built the SFTP and API connectors for multiple high-throughput platforms.",
   },
   {
     initials: "KS",

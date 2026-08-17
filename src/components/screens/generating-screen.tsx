@@ -14,14 +14,12 @@ export function GeneratingScreen() {
     <div
       role="status"
       aria-live="polite"
-      className="bg-grain relative flex flex-1 flex-col items-center overflow-hidden px-6 py-14"
+      className="relative flex flex-1 flex-col items-center overflow-hidden bg-grain px-6 py-14"
     >
       <AmbientBackdrop />
 
-      <div className="animate-rise flex flex-col items-center gap-3">
+      <div className="flex animate-rise flex-col items-center gap-3">
         <span className="flex items-center gap-2.5">
-          {/* Three beating dots rather than a spinner: a spinner says "busy",
-              a sequence says "steps are completing". */}
           <span className="flex items-center gap-1">
             {[0, 1, 2].map((i) => (
               <span
@@ -43,8 +41,8 @@ export function GeneratingScreen() {
           {genLabel}
         </span>
 
-        <span className="mt-1 h-[3px] w-56 overflow-hidden rounded-full bg-border/70">
-          <span className="animate-track-sweep block h-full w-full origin-left rounded-full bg-gradient-to-r from-brand-1 to-brand-5" />
+        <span className="mt-1 h-0.75 w-56 overflow-hidden rounded-full bg-border/70">
+          <span className="block h-full w-full origin-left animate-track-sweep rounded-full bg-linear-to-r from-brand-1 to-brand-5" />
         </span>
       </div>
 

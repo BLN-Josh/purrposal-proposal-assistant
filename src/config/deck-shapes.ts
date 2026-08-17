@@ -43,7 +43,6 @@ export interface DeckShapeOption {
   id: DeckShapeId;
   label: string;
   description: string;
-  /** Which sections this shape renders as slides — always emitted in SECTION_ORDER. */
   sections: SectionId[];
 }
 
@@ -58,7 +57,14 @@ export const DECK_SHAPE_OPTIONS: DeckShapeOption[] = [
     id: "discovery",
     label: "Discovery pitch",
     description: "Problem, options, approach. No pricing.",
-    sections: ["cover", "understanding", "options", "solutionDivider", "solution", "method"],
+    sections: [
+      "cover",
+      "understanding",
+      "options",
+      "solutionDivider",
+      "solution",
+      "method",
+    ],
   },
   {
     id: "exec",
@@ -77,7 +83,6 @@ export function getDeckShape(id: string): DeckShapeOption {
 export interface DepthOption {
   id: DepthId;
   label: string;
-  /** Relative multiplier for the landing page's estimated read time only. */
   readFactor: number;
 }
 

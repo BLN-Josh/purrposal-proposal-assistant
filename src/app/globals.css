@@ -66,22 +66,7 @@
 }
 
 /*
- * TWO PALETTES, ON PURPOSE.
- *
- * 1. The `--background/--foreground/--body/--detail/--highlight` set below is
- *    the *editor chrome* — the warm cream shell from the approved mock. It
- *    dresses the app around the deck: sidebar, buttons, chat, log.
- *
- * 2. The `--slide-*` and `--brand-*` set is the *deck itself*. A slide is a
- *    Balerion artifact, not app furniture: white ground, black body copy, and
- *    the brand red→amber ramp for every accent. These values mirror
- *    `src/lib/pptx/theme.ts` one-for-one, so what the editor previews and what
- *    PowerPoint opens are the same design system rather than two that drifted.
- *    Change a brand hex here and you must change it there too.
- *
- * Row/cell washes are produced with Tailwind opacity modifiers over the white
- * ground (`bg-brand-1/10`) rather than as separate tint tokens — one source of
- * truth per colour, and it stays correct if a brand hex moves.
+ * 2 palettes, for slides and for the app
  */
 :root {
   --slide: #ffffff;
@@ -184,19 +169,7 @@
   --sidebar-ring: #786356;
 }
 
-/*
- * MOTION SYSTEM — three curves, and nothing else.
- *
- * `smooth` is the default: a long tail that decelerates hard, which is what
- * makes an entrance read as "settled" rather than "stopped". `spring`
- * overshoots a few percent and is reserved for things that should feel
- * physical — a press, a check landing, a segmented pill sliding. `exit` is
- * front-loaded, because things leaving should get out of the way quickly.
- *
- * Pick one of these at every call site. A hand-rolled cubic-bezier in a
- * component is how an interface ends up with nine slightly different
- * personalities.
- */
+/* Motion curves. Use these rather than hand-rolling a cubic-bezier. */
 :root {
   --ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-spring: cubic-bezier(0.34, 1.42, 0.5, 1);
@@ -215,13 +188,6 @@
   }
 }
 
-/*
- * Motion is decoration here, never information: every animated element is
- * legible at its resting state, so honouring the OS switch costs the user
- * nothing but the flourish. Ambient loops (marquee, drifting washes) are
- * stopped outright rather than sped up — a 0.01ms infinite loop still burns
- * a compositor thread.
- */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -312,9 +278,7 @@
   }
 }
 
-/* Both tracks hold the same list twice, so -50% is exactly one seam. The
-   second row runs the other way and slower — two rows drifting apart reads
-   as a deck being flipped through, where one row alone reads as a ticker. */
+/* Each track holds its list twice, so -50% lands exactly on the seam. */
 @utility animate-marquee {
   animation: marquee 44s linear infinite;
 }
@@ -323,10 +287,7 @@
   animation: marquee-reverse 58s linear infinite;
 }
 
-/* Three elevations and no more: `soft` for anything sitting on the ground,
-   `soft-lg` for a panel, `lift` only as the hover partner of `soft-lg`.
-   Every shadow is tinted with the espresso foreground rather than black —
-   a neutral-grey shadow on a cream ground reads as dirt. */
+/* Three elevations, tinted with the foreground rather than black. */
 @utility shadow-soft {
   box-shadow: 0 1px 2px rgba(47, 16, 0, 0.08);
 }
@@ -343,9 +304,7 @@
     0 20px 44px -18px rgba(47, 16, 0, 0.24);
 }
 
-/* ── Entrances ───────────────────────────────────────────────────────────
-   All three read `--d` for their delay, so a stagger is set at the call
-   site (`style={delay(120)}`) instead of needing a utility per step. */
+/* Entrances. All read `--d` for their delay, set at the call site. */
 
 @keyframes rise-in {
   from {
@@ -365,8 +324,6 @@
   animation-delay: var(--d, 0ms);
 }
 
-/* Each headline word rides up out of a clipping mask — the tilt is what
-   separates it from a plain slide-up and makes it read as typeset. */
 @keyframes word-up {
   from {
     opacity: 0;
@@ -383,7 +340,7 @@
   animation-delay: var(--d, 0ms);
 }
 
-/* A marker swipe, drawn left-to-right under the accent word. */
+/* Marker swipe under the accent word. */
 @keyframes draw-x {
   from {
     transform: scaleX(0);
@@ -418,8 +375,7 @@
   animation: pop-check 440ms var(--ease-spring) backwards;
 }
 
-/* ── Ambient loops ───────────────────────────────────────────────────────
-   Long, prime-ish periods so the two washes never visibly re-sync. */
+/* Ambient loops. Mismatched periods so the washes never visibly re-sync. */
 
 @keyframes drift-a {
   0%,
@@ -449,8 +405,7 @@
   animation: drift-b 31s ease-in-out infinite;
 }
 
-/* Indeterminate progress: a band that sweeps the track. Honest for work of
-   unknown duration — a bar that creeps to 90% and waits is a lie. */
+/* Indeterminate progress sweep, for work of unknown duration. */
 @keyframes track-sweep {
   0% {
     transform: translateX(-100%) scaleX(0.35);
@@ -467,7 +422,6 @@
   animation: track-sweep 1.9s var(--ease-smooth) infinite;
 }
 
-/* The live-status dot: a ring that expands out of it and fades. */
 @keyframes halo {
   0% {
     opacity: 0.5;
@@ -484,10 +438,13 @@
   animation: halo 2.8s var(--ease-smooth) infinite;
 }
 
-/* Landing hero — a whisper of grain + a warm glow behind the wordmark,
-   the one deliberate flourish (design brief §"Signature element"). */
+/* Landing hero grain + warm glow. */
 @utility bg-grain {
   background-image:
-    radial-gradient(ellipse 640px 420px at 50% 18%, rgba(158, 100, 60, 0.1), transparent 70%),
+    radial-gradient(
+      ellipse 640px 420px at 50% 18%,
+      rgba(158, 100, 60, 0.1),
+      transparent 70%
+    ),
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
 }

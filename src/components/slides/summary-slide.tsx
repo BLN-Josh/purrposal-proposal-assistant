@@ -1,6 +1,11 @@
 import type { SummarySlide } from "@/lib/slides/schema";
 import { cn } from "@/lib/utils";
-import { SlideSurface, SlideTitle, SlideBody, accentFor } from "./slide-primitives";
+import {
+  SlideSurface,
+  SlideTitle,
+  SlideBody,
+  accentFor,
+} from "./slide-primitives";
 
 /** EXEC-01 — a 4–5 row label stack. Each row is a tinted label cell on the
  * left and either a bullet list or, when the row carries `options`, the
@@ -25,7 +30,7 @@ export function SummarySlideBody({ slide }: { slide: SummarySlide }) {
               className={cn(
                 "flex w-[15cqw] shrink-0 items-center px-[0.9cqw] py-[0.6cqw] text-[1.3cqw] leading-[1.25]",
                 accent.fill,
-                accent.onFill
+                accent.onFill,
               )}
             >
               {row.label}
@@ -48,7 +53,7 @@ export function SummarySlideBody({ slide }: { slide: SummarySlide }) {
                             <span
                               className={cn(
                                 "mt-[0.5cqw] size-[0.3cqw] shrink-0 rounded-full",
-                                accent.rule
+                                accent.rule,
                               )}
                             />
                             <span className="min-w-0">{b}</span>
@@ -66,7 +71,10 @@ export function SummarySlideBody({ slide }: { slide: SummarySlide }) {
                       className="flex gap-[0.7cqw] text-[1.3cqw] leading-[1.3] text-pretty text-slide-body"
                     >
                       <span
-                        className={cn("mt-[0.55cqw] size-[0.34cqw] shrink-0 rounded-full", accent.rule)}
+                        className={cn(
+                          "mt-[0.55cqw] size-[0.34cqw] shrink-0 rounded-full",
+                          accent.rule,
+                        )}
                       />
                       <span className="min-w-0">{b}</span>
                     </li>

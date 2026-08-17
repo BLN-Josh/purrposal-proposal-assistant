@@ -25,20 +25,30 @@ import {
  * `normalizeRecommended` in pipeline.ts.
  */
 const titled = {
-  sectionLabel: SectionLabelSchema.describe("The slide's section label, from the fixed house taxonomy."),
+  sectionLabel: SectionLabelSchema.describe(
+    "The slide's section label, from the fixed house taxonomy.",
+  ),
   assertion: z
     .string()
-    .describe("The slide's conclusion as an 8-18 word claim in UPPERCASE, quantified where the data allows."),
+    .describe(
+      "The slide's conclusion as an 8-18 word claim in UPPERCASE, quantified where the data allows.",
+    ),
 };
 
 export const ProjectUnderstandingOutput = BulletsContent.extend({
   ...titled,
   clientName: z
     .string()
-    .describe("The client or organization name mentioned in the brief, or a short generic label if none is given."),
-  projectTitle: z.string().describe("A short (3-6 word) project title suitable for a cover slide."),
+    .describe(
+      "The client or organization name mentioned in the brief, or a short generic label if none is given.",
+    ),
+  projectTitle: z
+    .string()
+    .describe("A short (3-6 word) project title suitable for a cover slide."),
 });
-export type ProjectUnderstandingOutput = z.infer<typeof ProjectUnderstandingOutput>;
+export type ProjectUnderstandingOutput = z.infer<
+  typeof ProjectUnderstandingOutput
+>;
 
 export const OptionAnalysisOutput = ComparisonContentBase.extend(titled);
 export type OptionAnalysisOutput = z.infer<typeof OptionAnalysisOutput>;
@@ -48,7 +58,9 @@ export const SolutionProposalOutput = BulletsContent.extend({
   selectedModuleKeys: z
     .array(z.string())
     .min(1)
-    .describe("Keys of the config modules (from the provided module list) relevant to this brief, most important first."),
+    .describe(
+      "Keys of the config modules (from the provided module list) relevant to this brief, most important first.",
+    ),
 });
 export type SolutionProposalOutput = z.infer<typeof SolutionProposalOutput>;
 
@@ -56,7 +68,9 @@ export const ValueChainOutput = ValueChainContent.extend(titled);
 export type ValueChainOutput = z.infer<typeof ValueChainOutput>;
 
 export const ExecutionMethodologyOutput = TimelineContent.extend(titled);
-export type ExecutionMethodologyOutput = z.infer<typeof ExecutionMethodologyOutput>;
+export type ExecutionMethodologyOutput = z.infer<
+  typeof ExecutionMethodologyOutput
+>;
 
 export const ExecutiveSummaryOutput = SummaryContent.extend(titled);
 export type ExecutiveSummaryOutput = z.infer<typeof ExecutiveSummaryOutput>;

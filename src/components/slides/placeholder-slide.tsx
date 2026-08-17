@@ -2,19 +2,6 @@ import { Sparkles } from "lucide-react";
 import type { PlaceholderSlide } from "@/lib/slides/schema";
 import { SlideSurface } from "./slide-primitives";
 
-/**
- * The empty slide a user drops in with the + button, before the model has
- * decided what it is.
- *
- * It is drawn as a *draft* rather than as a finished slide — dashed frame,
- * no two-line title, no furniture — because the whole point of the state is
- * that nobody has chosen a layout yet. Showing it with real slide chrome
- * would read as "this is a slide that failed to render" instead of "this
- * slide is waiting for you".
- *
- * Still on the white deck ground and still sized in `cqw`, so it sits in the
- * grid at exactly the same weight as its neighbours.
- */
 export function PlaceholderSlideBody({ slide }: { slide: PlaceholderSlide }) {
   return (
     <SlideSurface className="items-center justify-center">

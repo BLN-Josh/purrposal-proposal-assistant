@@ -3,11 +3,27 @@
 import { create } from "zustand";
 import { toast } from "sonner";
 import type { Slide, DeckTheme } from "@/lib/slides/schema";
-import { parseFile, streamGenerate, postEdit, fetchExportPptx, deckOutline } from "@/lib/api-client";
+import {
+  parseFile,
+  streamGenerate,
+  postEdit,
+  fetchExportPptx,
+  deckOutline,
+} from "@/lib/api-client";
 import { downloadBlob, slugify } from "@/lib/download";
 import { DEFAULT_EDIT_MODEL, DEFAULT_GENERATE_MODEL } from "@/lib/models";
-import { ACCEPTED_EXTENSIONS, MAX_FILE_BYTES, MAX_FILE_LABEL, UNSUPPORTED_FILE_MESSAGE } from "@/config/upload";
-import { DEFAULT_DECK_SHAPE, DEFAULT_DEPTH, type DeckShapeId, type DepthId } from "@/config/deck-shapes";
+import {
+  ACCEPTED_EXTENSIONS,
+  MAX_FILE_BYTES,
+  MAX_FILE_LABEL,
+  UNSUPPORTED_FILE_MESSAGE,
+} from "@/config/upload";
+import {
+  DEFAULT_DECK_SHAPE,
+  DEFAULT_DEPTH,
+  type DeckShapeId,
+  type DepthId,
+} from "@/config/deck-shapes";
 
 export type Screen = "landing" | "generating" | "workspace";
 
@@ -22,26 +38,18 @@ export interface LogEntry {
 }
 
 function nowLabel() {
-  return new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  return new Date().toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
-/**
- * How many slide numbers are spelled out before the list is elided.
- *
- * Past a handful, the run stops being something anyone reads and starts
- * being a layout problem: "Slides 1, 2, 3, … 20" overflowed the composer's
- * selection badge and squeezed the timestamp out of every edit-history row.
- * Five is enough to recognise a small selection at a glance; beyond that the
- * count is what matters, not the individual numbers.
- */
+/** Slide numbers spelled out before the list is elided. Past a handful the
+ * run stops being readable and starts overflowing the badge. */
 const MAX_LISTED_SLIDES = 5;
 
-/**
- * Human label for a selection: "Slide 3", "Slides 1, 2, 4", or an elided
- * "Slides 1, 2, 3, 4, 5…" once the run passes `limit`. Pass `Infinity` for
- * the unabridged list — the composer badge uses it as a tooltip so the exact
- * selection is still recoverable without it being on screen.
- */
+/** "Slide 3", "Slides 1, 2, 4", or an elided "Slides 1, 2, 3, 4, 5…".
+ * Pass `Infinity` for the full list — the badge uses it as a tooltip. */
 function labelFor(
   sel: string[],
   slides: Slide[],
@@ -158,8 +166,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   onFile: async (file: File) => {
     set({ dragging: false });
     const ext = "." + (file.name.split(".").pop() ?? "").toLowerCase();
-    if (!ACCEPTED_EXTENSIONS.includes(ext as (typeof ACCEPTED_EXTENSIONS)[number])) {
-      toast.error("Unsupported file", { description: UNSUPPORTED_FILE_MESSAGE });
+    if (
+      !ACCEPTED_EXTENSIONS.includes(ext as (typeof ACCEPTED_EXTENSIONS)[number])
+    ) {
+      toast.error("Unsupported file", {
+        description: UNSUPPORTED_FILE_MESSAGE,
+      });
       return;
     }
     if (file.size > MAX_FILE_BYTES) {
@@ -183,13 +195,20 @@ export const useAppStore = create<AppState>((set, get) => ({
   generate: async () => {
     const { fileName, fileText, brief, model, deckShape, depth } = get();
     if (!fileName && brief.trim().length < 20) return;
-    set({ screen: "generating", genStepIndex: 0, genLabel: "Extracting source document…" });
+    set({
+      screen: "generating",
+      genStepIndex: 0,
+      genLabel: "Extracting source document…",
+    });
     try {
       await streamGenerate(
         { brief, fileText, model, deckShape, depth, sourceFileName: fileName },
         (evt) => {
           if (evt.type === "progress") {
-            set((s) => ({ genStepIndex: s.genStepIndex + 1, genLabel: evt.label }));
+            set((s) => ({
+              genStepIndex: s.genStepIndex + 1,
+              genLabel: evt.label,
+            }));
           } else if (evt.type === "done") {
             set({
               screen: "workspace",
@@ -211,12 +230,13 @@ export const useAppStore = create<AppState>((set, get) => ({
           } else if (evt.type === "error") {
             throw new Error(evt.message);
           }
-        }
+        },
       );
     } catch (e) {
       set({ screen: "landing" });
       toast.error("Generation failed", {
-        description: e instanceof Error ? e.message : "Retry, or try a shorter brief.",
+        description:
+          e instanceof Error ? e.message : "Retry, or try a shorter brief.",
       });
     }
   },
@@ -241,17 +261,21 @@ export const useAppStore = create<AppState>((set, get) => ({
       brief: "",
     }),
 
-
   toggleMulti: () =>
     set((s) => ({ multi: !s.multi, sel: s.multi ? s.sel.slice(0, 1) : s.sel })),
 
   pick: (id) =>
     set((s) => {
       if (!s.multi) {
-        return { sel: s.sel.length === 1 && s.sel[0] === id ? [] : [id], errIds: [] };
+        return {
+          sel: s.sel.length === 1 && s.sel[0] === id ? [] : [id],
+          errIds: [],
+        };
       }
       return {
-        sel: s.sel.includes(id) ? s.sel.filter((x) => x !== id) : [...s.sel, id],
+        sel: s.sel.includes(id)
+          ? s.sel.filter((x) => x !== id)
+          : [...s.sel, id],
         errIds: [],
       };
     }),
@@ -265,7 +289,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!instruction || busy || screen !== "workspace") return;
     // Send only the slides being edited plus a titles-only deck map: a
     // one-slide edit used to ship the entire deck's JSON on every request.
-    const targetSlides = sel.length ? slides.filter((s) => sel.includes(s.id)) : slides;
+    const targetSlides = sel.length
+      ? slides.filter((s) => sel.includes(s.id))
+      : slides;
     if (!targetSlides.length) return;
     const targets = targetSlides.map((s) => s.id);
     const scope = labelFor(sel, slides);
@@ -300,8 +326,12 @@ export const useAppStore = create<AppState>((set, get) => ({
         return;
       }
 
-      const patched = new Map(res.results.filter((r) => r.slide).map((r) => [r.id, r.slide!]));
-      const notes = Array.from(new Set(res.results.map((r) => r.note).filter(Boolean)));
+      const patched = new Map(
+        res.results.filter((r) => r.slide).map((r) => [r.id, r.slide!]),
+      );
+      const notes = Array.from(
+        new Set(res.results.map((r) => r.note).filter(Boolean)),
+      );
       set((s) => ({
         slides: s.slides.map((sl) => patched.get(sl.id) ?? sl),
         busy: false,
@@ -324,7 +354,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     } catch (e) {
       set({ busy: false });
       toast.error("Edit failed", {
-        description: e instanceof Error ? e.message : "Try again — the instruction is still in the composer.",
+        description:
+          e instanceof Error
+            ? e.message
+            : "Try again — the instruction is still in the composer.",
       });
     }
   },
@@ -333,11 +366,20 @@ export const useAppStore = create<AppState>((set, get) => ({
     const id = crypto.randomUUID();
     set((s) => {
       const slides = [...s.slides];
-      slides.splice(Math.max(0, Math.min(index, slides.length)), 0, { id, kind: "placeholder" });
+      slides.splice(Math.max(0, Math.min(index, slides.length)), 0, {
+        id,
+        kind: "placeholder",
+      });
       // Force single-select: the new slide is the one thing the next
       // instruction should apply to, and inheriting a multi-selection here
       // would silently rewrite unrelated slides.
-      return { slides, sel: [id], multi: false, errIds: [], composerCue: s.composerCue + 1 };
+      return {
+        slides,
+        sel: [id],
+        multi: false,
+        errIds: [],
+        composerCue: s.composerCue + 1,
+      };
     });
   },
 
@@ -368,23 +410,26 @@ export const useAppStore = create<AppState>((set, get) => ({
     }));
 
     const remaining = get().slides.length;
-    toast(`${removed.kind === "placeholder" ? "Empty slide" : `Slide ${index + 1}`} removed`, {
-      description: remaining
-        ? `${remaining} slide${remaining === 1 ? "" : "s"} left in the deck.`
-        : "The deck is empty.",
-      action: {
-        label: "Undo",
-        onClick: () =>
-          set((s) => {
-            // The toast outlives the click, so guard against a second undo
-            // putting a duplicate id into the deck.
-            if (s.slides.some((x) => x.id === removed.id)) return {};
-            const next = [...s.slides];
-            next.splice(Math.min(index, next.length), 0, removed);
-            return { slides: next, sel: [removed.id] };
-          }),
+    toast(
+      `${removed.kind === "placeholder" ? "Empty slide" : `Slide ${index + 1}`} removed`,
+      {
+        description: remaining
+          ? `${remaining} slide${remaining === 1 ? "" : "s"} left in the deck.`
+          : "The deck is empty.",
+        action: {
+          label: "Undo",
+          onClick: () =>
+            set((s) => {
+              // The toast outlives the click, so guard against a second undo
+              // putting a duplicate id into the deck.
+              if (s.slides.some((x) => x.id === removed.id)) return {};
+              const next = [...s.slides];
+              next.splice(Math.min(index, next.length), 0, removed);
+              return { slides: next, sel: [removed.id] };
+            }),
+        },
       },
-    });
+    );
   },
 
   setMenu: (open) => set({ menu: open }),
@@ -401,14 +446,19 @@ export const useAppStore = create<AppState>((set, get) => ({
     const skipped = slides.length - exportable.length;
     if (!exportable.length) {
       toast.error("Nothing to export yet", {
-        description: "Describe your empty slides first — an empty slide has no layout to export.",
+        description:
+          "Describe your empty slides first — an empty slide has no layout to export.",
       });
       return;
     }
     set({ exporting: "pptx" });
 
     const filename = `${slugify(deckTitle || "proposal")}.pptx`;
-    const job = fetchExportPptx(exportable, deckTitle || "Proposal", get().deckTheme).then((blob) => {
+    const job = fetchExportPptx(
+      exportable,
+      deckTitle || "Proposal",
+      get().deckTheme,
+    ).then((blob) => {
       downloadBlob(blob, filename);
       return filename;
     });
@@ -417,7 +467,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       loading: "Exporting PowerPoint…",
       success: (name) =>
         `${name} · ${exportable.length} slides${skipped ? ` · ${skipped} empty slide${skipped === 1 ? "" : "s"} skipped` : ""}`,
-      error: (e) => (e instanceof Error ? e.message : "Export failed. Try again."),
+      error: (e) =>
+        e instanceof Error ? e.message : "Export failed. Try again.",
     });
 
     await job.catch(() => {});

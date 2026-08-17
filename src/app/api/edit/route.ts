@@ -10,13 +10,29 @@ import {
 } from "@/lib/slides/schema";
 import { repairComparison, assertPaymentTermsSum } from "@/lib/slides/repair";
 import { generateStructured } from "@/lib/anthropic";
-import { classifyEditIntent, extractScopeLabel, MONEY_GUARD_MESSAGES } from "@/lib/generation/edit-guard";
-import { editSlidePrompt, newSlidePrompt, slideKindPrompt } from "@/lib/generation/prompts";
+import {
+  classifyEditIntent,
+  extractScopeLabel,
+  MONEY_GUARD_MESSAGES,
+} from "@/lib/generation/edit-guard";
+import {
+  editSlidePrompt,
+  newSlidePrompt,
+  slideKindPrompt,
+} from "@/lib/generation/prompts";
 import { addScopeLine } from "@/lib/pricing";
 import { classifyError } from "@/lib/errors";
 import { isKnownModel } from "@/lib/models";
-import { MAX_JSON_BODY_BYTES, OVERSIZE_BODY_MESSAGE, exceedsDeclaredSize } from "@/config/upload";
-import type { EditResponse, EditResult, SlideOutlineEntry } from "@/lib/api-types";
+import {
+  MAX_JSON_BODY_BYTES,
+  OVERSIZE_BODY_MESSAGE,
+  exceedsDeclaredSize,
+} from "@/config/upload";
+import type {
+  EditResponse,
+  EditResult,
+  SlideOutlineEntry,
+} from "@/lib/api-types";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +54,7 @@ const RequestSchema = z.object({
 
 /**
  * `max_tokens` bounds thinking *and* answer, so it has to scale with how
- * much JSON the layout actually needs — a six-row feature table is an order
+ * much JSON the layout actually needs a six-row feature table is an order
  * of magnitude more output than a divider. One flat budget either truncates
  * the big layouts or over-provisions every call.
  */
@@ -89,7 +105,9 @@ export async function POST(request: Request) {
     positionOf: buildPositionLookup(outline as SlideOutlineEntry[]),
   };
 
-  const results = await mapLimit(slides, CONCURRENCY, (slide) => editOneSlide(slide, ctx));
+  const results = await mapLimit(slides, CONCURRENCY, (slide) =>
+    editOneSlide(slide, ctx),
+  );
   const response: EditResponse = { results };
   return Response.json(response);
 }
@@ -101,7 +119,10 @@ interface EditContext {
   positionOf: (id: string) => number;
 }
 
-async function editOneSlide(slide: Slide, ctx: EditContext): Promise<EditResult> {
+async function editOneSlide(
+  slide: Slide,
+  ctx: EditContext,
+): Promise<EditResult> {
   const { instruction } = ctx;
   const id = slide.id;
 
@@ -110,8 +131,10 @@ async function editOneSlide(slide: Slide, ctx: EditContext): Promise<EditResult>
   // the commercial layout (NEW_SLIDE_KINDS excludes it).
   const intent = classifyEditIntent(instruction, slide.kind === "commercial");
 
-  if (intent === "wrong-slide") return { id, error: MONEY_GUARD_MESSAGES.wrongSlide };
-  if (intent === "not-in-rate-card") return { id, error: MONEY_GUARD_MESSAGES.notInRateCard };
+  if (intent === "wrong-slide")
+    return { id, error: MONEY_GUARD_MESSAGES.wrongSlide };
+  if (intent === "not-in-rate-card")
+    return { id, error: MONEY_GUARD_MESSAGES.notInRateCard };
   if (intent === "scope-add") {
     // slide.kind === "commercial" is guaranteed here — classifyEditIntent
     // only returns "scope-add" when isCommercialSlide was true.
@@ -135,10 +158,19 @@ async function editOneSlide(slide: Slide, ctx: EditContext): Promise<EditResult>
 }
 
 /** A normal, scoped, structured-output regeneration of an existing slide. */
-async function reviseSlide(slide: Slide, ctx: EditContext): Promise<EditResult> {
+async function reviseSlide(
+  slide: Slide,
+  ctx: EditContext,
+): Promise<EditResult> {
   const kind = slide.kind as SlideKind;
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { id: _id, kind: _kind, notes: _notes, revised: _revised, ...content } = slide;
+
+  const {
+    id: _id,
+    kind: _kind,
+    notes: _notes,
+    revised: _revised,
+    ...content
+  } = slide;
 
   const revisedContent = await generateStructured({
     model: ctx.model,
@@ -156,8 +188,17 @@ async function reviseSlide(slide: Slide, ctx: EditContext): Promise<EditResult> 
   });
 
   // Envelope fields the model was never shown, and so cannot have preserved.
-  const envelope = { id: slide.id, domain: slide.domain, page: slide.page, notes: slide.notes };
-  return { id: slide.id, slide: assemble(kind, revisedContent, envelope), note: "" };
+  const envelope = {
+    id: slide.id,
+    domain: slide.domain,
+    page: slide.page,
+    notes: slide.notes,
+  };
+  return {
+    id: slide.id,
+    slide: assemble(kind, revisedContent, envelope),
+    note: "",
+  };
 }
 
 /**
@@ -172,16 +213,23 @@ async function reviseSlide(slide: Slide, ctx: EditContext): Promise<EditResult> 
  * as nonsense. The picker call is small and runs at low effort, so the extra
  * hop costs well under a second.
  */
-async function fillPlaceholder(id: string, ctx: EditContext): Promise<EditResult> {
+async function fillPlaceholder(
+  id: string,
+  ctx: EditContext,
+): Promise<EditResult> {
   const position = ctx.positionOf(id);
 
   const pick = await generateStructured({
     model: ctx.model,
     schema: z.object({
-      kind: NewSlideKindSchema.describe("The layout id that best fits the requested content."),
+      kind: NewSlideKindSchema.describe(
+        "The layout id that best fits the requested content.",
+      ),
       plan: z
         .string()
-        .describe("One sentence, max 25 words, naming what this slide will actually assert."),
+        .describe(
+          "One sentence, max 25 words, naming what this slide will actually assert.",
+        ),
     }),
     maxTokens: 1024,
     effort: "low",
@@ -229,16 +277,21 @@ interface SlideEnvelopeFields {
  * every renderer and the exporter can handle — and it strips the leftover
  * placeholder `hint` on the way through.
  */
-function assemble(kind: SlideKind, content: unknown, envelope: SlideEnvelopeFields): Slide {
+function assemble(
+  kind: SlideKind,
+  content: unknown,
+  envelope: SlideEnvelopeFields,
+): Slide {
   let fields = content as Record<string, unknown>;
 
-  // Cross-field rules the schema cannot carry: the `Slide` union is built
-  // from `ComparisonContentBase`, so the `.refine()`s on `ComparisonContent`
-  // never ran on this path. Generation repaired its output and edits did not,
-  // which is how an edit could produce a matrix with blank cells and two
-  // recommended columns — see lib/slides/repair.ts.
+  // Cross-field rules the schema cannot carry — the union is built from
+  // `ComparisonContentBase`, so its `.refine()`s never ran. See
+  // lib/slides/repair.ts.
   if (kind === "comparison") {
-    fields = { ...fields, ...repairComparison(fields as unknown as ComparisonContent) };
+    fields = {
+      ...fields,
+      ...repairComparison(fields as unknown as ComparisonContent),
+    };
   }
   if (kind === "commercial") {
     assertPaymentTermsSum(fields.paymentTerms as { pct: number }[] | undefined);
@@ -261,7 +314,11 @@ function buildPositionLookup(outline: SlideOutlineEntry[]) {
 
 /** Run `fn` over `items` with at most `limit` in flight, preserving order.
  * `fn` is expected never to reject — every call site catches internally. */
-async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+async function mapLimit<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
   const out = new Array<R>(items.length);
   let next = 0;
   const worker = async () => {
@@ -271,6 +328,8 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promis
       out[i] = await fn(items[i]);
     }
   };
-  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, worker),
+  );
   return out;
 }

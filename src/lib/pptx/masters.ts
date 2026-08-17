@@ -2,7 +2,14 @@ import fs from "node:fs";
 import path from "node:path";
 import pptxgen from "pptxgenjs";
 import {
-  PAGE, TYPE, LOGO, LIGHT_MASTER, DARK_MASTER, COVER_MASTER, LOGO_DIR, isSafeLogoFile,
+  PAGE,
+  TYPE,
+  LOGO,
+  LIGHT_MASTER,
+  DARK_MASTER,
+  COVER_MASTER,
+  LOGO_DIR,
+  isSafeLogoFile,
   type ResolvedTheme,
 } from "./theme";
 
@@ -32,7 +39,9 @@ export function loadLogoData(fileName: string): string | null {
   if (cached) return cached;
 
   if (!isSafeLogoFile(fileName)) {
-    console.warn(`[pptx] refusing logo "${fileName}" — must be a bare image filename in ${LOGO_DIR}`);
+    console.warn(
+      `[pptx] refusing logo "${fileName}" — must be a bare image filename in ${LOGO_DIR}`,
+    );
     return null;
   }
 
@@ -46,7 +55,9 @@ export function loadLogoData(fileName: string): string | null {
     // Defence in depth: even with the filename validated, never read outside
     // the brand directory.
     if (path.dirname(path.resolve(abs)) !== path.resolve(dir)) {
-      console.warn(`[pptx] refusing logo "${fileName}" — resolves outside ${LOGO_DIR}`);
+      console.warn(
+        `[pptx] refusing logo "${fileName}" — resolves outside ${LOGO_DIR}`,
+      );
       return null;
     }
 
@@ -56,21 +67,33 @@ export function loadLogoData(fileName: string): string | null {
     return data;
   } catch {
     // A missing brand asset should degrade to an unbranded deck, not a 500.
-    console.warn(`[pptx] logo "${fileName}" not readable in ${LOGO_DIR} — exporting without it`);
+    console.warn(
+      `[pptx] logo "${fileName}" not readable in ${LOGO_DIR} — exporting without it`,
+    );
     return null;
   }
 }
 
 type MasterObject = NonNullable<pptxgen.SlideMasterProps["objects"]>[number];
 
-function furniture(t: ResolvedTheme, onDark: boolean, withLogo = true): MasterObject[] {
+function furniture(
+  t: ResolvedTheme,
+  onDark: boolean,
+  withLogo = true,
+): MasterObject[] {
   const objects: MasterObject[] = [];
 
   if (withLogo && t.logoFile) {
     const data = loadLogoData(t.logoFile);
     if (data) {
       objects.push({
-        image: { data, x: LOGO.x, y: LOGO.y, w: LOGO.w, h: LOGO.w / LOGO.aspect },
+        image: {
+          data,
+          x: LOGO.x,
+          y: LOGO.y,
+          w: LOGO.w,
+          h: LOGO.w / LOGO.aspect,
+        },
       });
     }
   }
@@ -80,10 +103,14 @@ function furniture(t: ResolvedTheme, onDark: boolean, withLogo = true): MasterOb
       text: {
         text: t.footerLabel,
         options: {
-          x: PAGE.w - 3.0, y: PAGE.h - 0.4, w: 2.2, h: 0.25,
+          x: PAGE.w - 3.0,
+          y: PAGE.h - 0.4,
+          w: 2.2,
+          h: 0.25,
           fontSize: TYPE.footerLabel.size,
           color: onDark ? t.gray500 : t.gray500,
-          align: "right", fontFace: t.font,
+          align: "right",
+          fontFace: t.font,
         },
       },
     });
@@ -95,7 +122,10 @@ function furniture(t: ResolvedTheme, onDark: boolean, withLogo = true): MasterOb
 function slideNumberProps(t: ResolvedTheme, onDark: boolean) {
   if (!t.showPageNumbers) return undefined;
   return {
-    x: PAGE.w - 0.73, y: PAGE.h - 0.4, w: 0.4, h: 0.25,
+    x: PAGE.w - 0.73,
+    y: PAGE.h - 0.4,
+    w: 0.4,
+    h: 0.25,
     fontSize: TYPE.footerPage.size,
     bold: true,
     color: onDark ? t.white : t.black,

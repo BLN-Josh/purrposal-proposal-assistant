@@ -25,15 +25,17 @@ const WORKSTREAM_ORDER: Workstream[] = [
 
 export function computeCommercialTerms(
   config: ProposalConfig,
-  selectedModuleKeys: string[]
+  selectedModuleKeys: string[],
 ): CommercialContent {
-  const selected = config.modules.filter((m) => selectedModuleKeys.includes(m.key));
+  const selected = config.modules.filter((m) =>
+    selectedModuleKeys.includes(m.key),
+  );
   const manDaysByWorkstream = new Map<Workstream, number>();
 
   for (const m of selected) {
     manDaysByWorkstream.set(
       m.workstream,
-      (manDaysByWorkstream.get(m.workstream) ?? 0) + m.manDays
+      (manDaysByWorkstream.get(m.workstream) ?? 0) + m.manDays,
     );
   }
 
@@ -43,24 +45,26 @@ export function computeCommercialTerms(
   const changeMgmtManDays = Math.max(10, Math.round(featureManDays * 0.15));
   manDaysByWorkstream.set(
     "change_management",
-    (manDaysByWorkstream.get("change_management") ?? 0) + changeMgmtManDays
+    (manDaysByWorkstream.get("change_management") ?? 0) + changeMgmtManDays,
   );
   manDaysByWorkstream.set(
     "hyper_care",
-    (manDaysByWorkstream.get("hyper_care") ?? 0) + HYPER_CARE_MAN_DAYS
+    (manDaysByWorkstream.get("hyper_care") ?? 0) + HYPER_CARE_MAN_DAYS,
   );
 
   let totalTHB = 0;
-  const rows = WORKSTREAM_ORDER.filter((w) => manDaysByWorkstream.has(w)).map((w) => {
-    const manDays = manDaysByWorkstream.get(w)!;
-    const cost = manDays * WORKSTREAM_RATE_THB[w];
-    totalTHB += cost;
-    return {
-      item: WORKSTREAM_LABEL[w],
-      description: `${manDays} man-days at the ${WORKSTREAM_LABEL[w].toLowerCase()} blended day rate`,
-      cost: `THB ${cost.toLocaleString("en-US")}`,
-    };
-  });
+  const rows = WORKSTREAM_ORDER.filter((w) => manDaysByWorkstream.has(w)).map(
+    (w) => {
+      const manDays = manDaysByWorkstream.get(w)!;
+      const cost = manDays * WORKSTREAM_RATE_THB[w];
+      totalTHB += cost;
+      return {
+        item: WORKSTREAM_LABEL[w],
+        description: `${manDays} man-days at the ${WORKSTREAM_LABEL[w].toLowerCase()} blended day rate`,
+        cost: `THB ${cost.toLocaleString("en-US")}`,
+      };
+    },
+  );
 
   return {
     rows,
@@ -80,7 +84,7 @@ export function computeCommercialTerms(
 export function addScopeLine(
   current: CommercialContent,
   label: string,
-  manDays = 24
+  manDays = 24,
 ): CommercialContent {
   const rate = WORKSTREAM_RATE_THB.development;
   const cost = manDays * rate;
@@ -94,10 +98,8 @@ export function addScopeLine(
   ];
   const priorTotal = parseTotalTHB(current.total);
 
-  // An unreadable prior total is left alone rather than replaced by one
-  // derived from this single line. Dropping `total` shows the deck as having
-  // no stated total — which is true and visible — where the old behaviour
-  // printed the new line's own cost as if it were the engagement total.
+  // Drop the total rather than derive one from this line alone — an unread
+  // total is visibly absent, where a wrong one is not.
   if (priorTotal === null) {
     return { ...current, rows, total: undefined };
   }
@@ -108,30 +110,23 @@ export function addScopeLine(
 
 /**
  * Reads a stored total back into a number, or `null` when it cannot be read.
- *
- * The previous implementation stripped every non-digit and concatenated
- * what was left, which silently corrupted anything but a plain grouped
- * integer: `"THB 1,000,000.50"` became 100000050 — a 100× error on a
- * client-facing price — and `"THB 1.5 million"` became 15. Grouped digits are
- * matched as a unit instead, and anything else (`"TBD"`, `"1.5 million"`,
- * absent) is reported as unreadable rather than guessed at.
+ * Stripping non-digits (the old approach) turned "THB 1,000,000.50" into
+ * 100000050 — a 100x error on a client-facing price — so anything that is
+ * not an unambiguous figure is reported unreadable rather than guessed at.
  */
 function parseTotalTHB(total: string | undefined): number | null {
   if (!total) return null;
-  // A run of digits with optional thousands groups, optionally followed by a
-  // decimal part. Anchored to a word boundary so "THB 5,400,000.50" reads as
-  // one number and not as several.
+
   const match = /(\d{1,3}(?:,\d{3})+|\d+)(\.\d+)?/.exec(total);
   if (!match) return null;
 
   const remainder = total.slice(match.index + match[0].length);
 
-  // "THB 5.4M" is 5,400,000, not 5.4 — a magnitude suffix means the digits
-  // alone are not the value, so the total is unreadable rather than small.
-  if (/^\s*(m|mn|k|bn|b|million|thousand|billion)\b/i.test(remainder)) return null;
+  // "THB 5.4M" is 5,400,000, not 5.4.
+  if (/^\s*(m|mn|k|bn|b|million|thousand|billion)\b/i.test(remainder))
+    return null;
 
-  // Reject anything with a second, unrelated number in it ("1,000,000 (ex VAT
-  // 7%)"): which one is the total is a guess, and guessing is the bug.
+  // A second number ("1,000,000 (ex VAT 7%)") makes the total a guess.
   if (/\d/.test(remainder)) return null;
 
   const value = Number(`${match[1].replace(/,/g, "")}${match[2] ?? ""}`);

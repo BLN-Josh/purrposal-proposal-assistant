@@ -11,7 +11,9 @@ export function DividerSlideBody({ slide }: { slide: DividerSlide }) {
   const accent = accentFor(slide.domain);
   return (
     <SlideSurface className="justify-center p-[6cqw]">
-      <div className={cn("absolute inset-x-0 top-0 h-[0.45cqw]", accent.rule)} />
+      <div
+        className={cn("absolute inset-x-0 top-0 h-[0.45cqw]", accent.rule)}
+      />
 
       {slide.deckSubtitle ? (
         <div className="font-mono text-[1.35cqw] tracking-[0.16em] text-slide-muted uppercase">
@@ -21,7 +23,7 @@ export function DividerSlideBody({ slide }: { slide: DividerSlide }) {
       <div
         className={cn(
           "mt-[1.8cqw] text-[4.2cqw] leading-[1.1] font-semibold text-balance uppercase",
-          accent.text
+          accent.text,
         )}
       >
         {slide.sectionName}

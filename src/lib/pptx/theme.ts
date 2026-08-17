@@ -21,7 +21,13 @@
 
 /** The official Balerion brand ramp, dark red → amber. Order is meaningful:
  * index 0 is the primary accent, index 4 the lightest. */
-export const BRAND_GRADIENT = ["EF233C", "F23A3E", "F44F40", "F76C43", "FC9947"] as const;
+export const BRAND_GRADIENT = [
+  "EF233C",
+  "F23A3E",
+  "F44F40",
+  "F76C43",
+  "FC9947",
+] as const;
 
 /** pptxgenjs rejects a leading '#'; brand values get pasted in with one
  * about half the time, so normalize rather than fail at render. */
@@ -37,7 +43,10 @@ export function tint(hex: string, whiteRatio: number): string {
     const c = parseInt(h.slice(i, i + 2), 16);
     return Math.round(c * (1 - whiteRatio) + 255 * whiteRatio);
   };
-  return [0, 2, 4].map((i) => mix(i).toString(16).padStart(2, "0")).join("").toUpperCase();
+  return [0, 2, 4]
+    .map((i) => mix(i).toString(16).padStart(2, "0"))
+    .join("")
+    .toUpperCase();
 }
 
 /**
@@ -65,15 +74,10 @@ export function textColorFor(bgHex: string): string {
 /**
  * Spec §1.1. pptxgenjs `LAYOUT_WIDE`.
  *
- * These are derived from the on-screen renderer rather than chosen
- * independently, because the preview is the contract: the editor sizes every
- * slide in `cqw` (1% of the slide's own width), and at 16:9 the slide is
- * exactly 13.333in wide — so 1cqw is 0.13333in and the two can be reconciled
- * exactly. The frame's `p-[5cqw]` is the margin below, and `bandTop` is where
- * the renderer's title block ends plus its `mt-[2cqw]` gap.
- *
- * Change a value here and you must change its `cqw` counterpart in
- * `slide-primitives.tsx`, or the export drifts from what the user approved.
+ * Derived from the renderer, which sizes slides in `cqw` — at 16:9 the slide
+ * is 13.333in wide, so 1cqw = 0.13333in and the two reconcile exactly.
+ * Change a value here and change its `cqw` counterpart in
+ * slide-primitives.tsx, or the export drifts from the preview.
  */
 export const PAGE = {
   w: 13.333,
@@ -90,7 +94,12 @@ export const PAGE = {
 } as const;
 
 export const STROKE = { hairline: 0.75, accent: 1.0 } as const;
-export const GAP = { tight: 0.06, normal: 0.12, column: 0.25, block: 0.35 } as const;
+export const GAP = {
+  tight: 0.06,
+  normal: 0.12,
+  column: 0.25,
+  block: 0.35,
+} as const;
 
 /** Deck-level knobs. Every field is optional; `resolveTheme` fills defaults.
  * This is the customization surface — a caller can restyle a whole deck
@@ -165,9 +174,13 @@ export function isSafeLogoFile(name: string): boolean {
 }
 
 export function resolveTheme(o: DeckThemeOverrides = {}): ResolvedTheme {
-  const gradient = (o.gradient?.length ? o.gradient : BRAND_GRADIENT).map(normalizeHex);
+  const gradient = (o.gradient?.length ? o.gradient : BRAND_GRADIENT).map(
+    normalizeHex,
+  );
   const accent = normalizeHex(o.accent ?? gradient[0]);
-  const accentSecondary = normalizeHex(o.accentSecondary ?? gradient[Math.min(3, gradient.length - 1)]);
+  const accentSecondary = normalizeHex(
+    o.accentSecondary ?? gradient[Math.min(3, gradient.length - 1)],
+  );
   return {
     accent,
     accentSecondary,
@@ -186,20 +199,16 @@ export function resolveTheme(o: DeckThemeOverrides = {}): ResolvedTheme {
     disabled: "D9D9D9",
     font: o.font ?? "Arial",
     logoFile: o.logoFile === undefined ? DEFAULT_LOGO_FILE : o.logoFile,
-    footerLabel: o.footerLabel === undefined ? "Strictly Confidential" : o.footerLabel,
+    footerLabel:
+      o.footerLabel === undefined ? "Strictly Confidential" : o.footerLabel,
     showPageNumbers: o.showPageNumbers ?? true,
   };
 }
 
 /**
  * Spec §1.3 type ramp. Sizes are pt; every role is Arial (the source decks
- * use exactly one family — there is no secondary typeface anywhere).
- *
- * Sizes are the renderer's `cqw` values converted at 1cqw = 0.13333in =
- * 9.6pt, so the exported slide carries the same hierarchy as the preview.
- * The assertion in particular used to export at the section label's 14pt
- * while the renderer set it at 2.5cqw ≈ 24pt — the line that is supposed to
- * dominate the slide came out the same size as its own kicker.
+ * use one family). Values are the renderer's `cqw` sizes converted at
+ * 1cqw = 9.6pt, so the export keeps the preview's hierarchy.
  */
 export const TYPE = {
   /** 1.3cqw */

@@ -23,10 +23,14 @@ function getClient(): Anthropic {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
       throw new Error(
-        "ANTHROPIC_API_KEY is not set. Add it to .env.local (see .env.example)."
+        "ANTHROPIC_API_KEY is not set. Add it to .env.local (see .env.example).",
       );
     }
-    client = new Anthropic({ apiKey, maxRetries: 3, timeout: REQUEST_TIMEOUT_MS });
+    client = new Anthropic({
+      apiKey,
+      maxRetries: 3,
+      timeout: REQUEST_TIMEOUT_MS,
+    });
   }
   return client;
 }
@@ -83,11 +87,14 @@ export async function generateStructured<T>({
 
   const tool = {
     name: TOOL_NAME,
-    description: "Emit the structured result for this task. Always call this tool.",
+    description:
+      "Emit the structured result for this task. Always call this tool.",
     input_schema: toToolSchema(schema) as ToolInputSchema,
   };
 
-  const messages: Anthropic.MessageParam[] = [{ role: "user", content: prompt }];
+  const messages: Anthropic.MessageParam[] = [
+    { role: "user", content: prompt },
+  ];
 
   for (let attempt = 0; ; attempt++) {
     const message = await anthropic.messages.create({
@@ -105,14 +112,17 @@ export async function generateStructured<T>({
     // input object, and would otherwise fail validation with a misleading
     // "the model returned the wrong shape" instead of "it ran out of room".
     if (message.stop_reason === "max_tokens") {
-      throw new Error(`Structured output was truncated at ${maxTokens} tokens.`);
+      throw new Error(
+        `Structured output was truncated at ${maxTokens} tokens.`,
+      );
     }
     if (message.stop_reason === "refusal") {
       throw new Error("The model declined this request.");
     }
 
     const toolUse = message.content.find(
-      (block): block is Extract<typeof block, { type: "tool_use" }> => block.type === "tool_use"
+      (block): block is Extract<typeof block, { type: "tool_use" }> =>
+        block.type === "tool_use",
     );
     if (!toolUse) {
       throw new Error("The model did not return structured output.");
@@ -122,7 +132,9 @@ export async function generateStructured<T>({
     if (parsed.success) {
       if (label) {
         const { input_tokens: i, output_tokens: o } = message.usage;
-        console.info(`[anthropic] ${label} ${model} ${Date.now() - started}ms in=${i} out=${o} retries=${attempt}`);
+        console.info(
+          `[anthropic] ${label} ${model} ${Date.now() - started}ms in=${i} out=${o} retries=${attempt}`,
+        );
       }
       return parsed.data;
     }
@@ -141,7 +153,7 @@ export async function generateStructured<T>({
             content: `That did not match the schema. Fix exactly these problems and call the tool again:\n${describeIssues(parsed.error)}`,
           },
         ],
-      }
+      },
     );
   }
 }

@@ -84,7 +84,10 @@ export const DomainSchema = z.enum(["primary", "secondary", "neutral"]);
 export type Domain = z.infer<typeof DomainSchema>;
 
 /** Spec §2 rule 6 — `(1/4)` suffix for content split across slides. */
-export const PageRefSchema = z.object({ n: z.number().int().min(1), m: z.number().int().min(1) });
+export const PageRefSchema = z.object({
+  n: z.number().int().min(1),
+  m: z.number().int().min(1),
+});
 
 // ---- Per-kind content schemas -------------------------------------------
 // These are the exact shape the LLM must return for a section *and* the exact
@@ -165,15 +168,16 @@ export const ComparisonContentBase = z.object({
 
 /** Validated form, used where the content arrives from outside (generation)
  * and the cross-field invariants must actually hold. */
-export const ComparisonContent = ComparisonContentBase
-  .refine((c) => c.options.every((o) => o.cells.length === c.criteria.length), {
+export const ComparisonContent = ComparisonContentBase.refine(
+  (c) => c.options.every((o) => o.cells.length === c.criteria.length),
+  {
     message: "Each option must have exactly one cell per criterion.",
     path: ["options"],
-  })
-  .refine((c) => c.options.filter((o) => o.recommended).length === 1, {
-    message: "Exactly one option must be marked recommended (spec V06).",
-    path: ["options"],
-  });
+  },
+).refine((c) => c.options.filter((o) => o.recommended).length === 1, {
+  message: "Exactly one option must be marked recommended (spec V06).",
+  path: ["options"],
+});
 export type ComparisonContent = z.infer<typeof ComparisonContentBase>;
 
 /** SOL-08 feature detail. `group` is the vertical band label on the tinted
@@ -311,17 +315,47 @@ export const PlaceholderContent = z.object({
 });
 export type PlaceholderContent = z.infer<typeof PlaceholderContent>;
 
-export const TitleSlide = SlideEnvelope.extend({ kind: z.literal("title") }).extend(TitleContent.shape);
-export const DividerSlide = SlideEnvelope.extend({ kind: z.literal("divider") }).extend(DividerContent.shape);
-export const SummarySlide = SlideEnvelope.extend({ kind: z.literal("summary"), ...titled }).extend(SummaryContent.shape);
-export const BulletsSlide = SlideEnvelope.extend({ kind: z.literal("bullets"), ...titled }).extend(BulletsContent.shape);
-export const ComparisonSlide = SlideEnvelope.extend({ kind: z.literal("comparison"), ...titled }).extend(ComparisonContentBase.shape);
-export const TableSlide = SlideEnvelope.extend({ kind: z.literal("table"), ...titled }).extend(TableContent.shape);
-export const ValueChainSlide = SlideEnvelope.extend({ kind: z.literal("valueChain"), ...titled }).extend(ValueChainContent.shape);
-export const TimelineSlide = SlideEnvelope.extend({ kind: z.literal("timeline"), ...titled }).extend(TimelineContent.shape);
-export const TeamSlide = SlideEnvelope.extend({ kind: z.literal("team"), ...titled }).extend(TeamContent.shape);
-export const CommercialSlide = SlideEnvelope.extend({ kind: z.literal("commercial"), ...titled }).extend(CommercialContent.shape);
-export const PlaceholderSlide = SlideEnvelope.extend({ kind: z.literal("placeholder") }).extend(PlaceholderContent.shape);
+export const TitleSlide = SlideEnvelope.extend({
+  kind: z.literal("title"),
+}).extend(TitleContent.shape);
+export const DividerSlide = SlideEnvelope.extend({
+  kind: z.literal("divider"),
+}).extend(DividerContent.shape);
+export const SummarySlide = SlideEnvelope.extend({
+  kind: z.literal("summary"),
+  ...titled,
+}).extend(SummaryContent.shape);
+export const BulletsSlide = SlideEnvelope.extend({
+  kind: z.literal("bullets"),
+  ...titled,
+}).extend(BulletsContent.shape);
+export const ComparisonSlide = SlideEnvelope.extend({
+  kind: z.literal("comparison"),
+  ...titled,
+}).extend(ComparisonContentBase.shape);
+export const TableSlide = SlideEnvelope.extend({
+  kind: z.literal("table"),
+  ...titled,
+}).extend(TableContent.shape);
+export const ValueChainSlide = SlideEnvelope.extend({
+  kind: z.literal("valueChain"),
+  ...titled,
+}).extend(ValueChainContent.shape);
+export const TimelineSlide = SlideEnvelope.extend({
+  kind: z.literal("timeline"),
+  ...titled,
+}).extend(TimelineContent.shape);
+export const TeamSlide = SlideEnvelope.extend({
+  kind: z.literal("team"),
+  ...titled,
+}).extend(TeamContent.shape);
+export const CommercialSlide = SlideEnvelope.extend({
+  kind: z.literal("commercial"),
+  ...titled,
+}).extend(CommercialContent.shape);
+export const PlaceholderSlide = SlideEnvelope.extend({
+  kind: z.literal("placeholder"),
+}).extend(PlaceholderContent.shape);
 
 export const Slide = z.discriminatedUnion("kind", [
   TitleSlide,
@@ -407,7 +441,10 @@ export const DeckThemeSchema = z.object({
    */
   logoFile: z
     .string()
-    .regex(/^[A-Za-z0-9][A-Za-z0-9._-]*\.(?:png|jpe?g)$/, "Must be an image filename in public/brand, not a path.")
+    .regex(
+      /^[A-Za-z0-9][A-Za-z0-9._-]*\.(?:png|jpe?g)$/,
+      "Must be an image filename in public/brand, not a path.",
+    )
     .refine((s) => !s.includes(".."), "Must not contain '..'.")
     .nullable()
     .optional(),
@@ -432,7 +469,10 @@ export type Deck = z.infer<typeof Deck>;
 
 /** Strip the JSON-Schema-unfriendly `$schema` key zod v4 emits by default. */
 export function toToolSchema(schema: z.ZodTypeAny) {
-  const json = z.toJSONSchema(schema, { target: "draft-7" }) as Record<string, unknown>;
+  const json = z.toJSONSchema(schema, { target: "draft-7" }) as Record<
+    string,
+    unknown
+  >;
   delete json.$schema;
   return json;
 }
@@ -440,7 +480,14 @@ export function toToolSchema(schema: z.ZodTypeAny) {
 /** Kinds that carry the two-line title. Cover and divider render their own
  * title treatment and have no section label or assertion. */
 const TITLED_KINDS = new Set<SlideKind>([
-  "summary", "bullets", "comparison", "table", "valueChain", "timeline", "team", "commercial",
+  "summary",
+  "bullets",
+  "comparison",
+  "table",
+  "valueChain",
+  "timeline",
+  "team",
+  "commercial",
 ]);
 
 /**
@@ -455,6 +502,10 @@ export function editSchemaFor(kind: SlideKind): z.ZodTypeAny {
   if (!TITLED_KINDS.has(kind)) return base;
   return base.extend({
     sectionLabel: SectionLabelSchema,
-    assertion: z.string().describe("An 8-18 word claim in UPPERCASE, quantified where the slide's data allows."),
+    assertion: z
+      .string()
+      .describe(
+        "An 8-18 word claim in UPPERCASE, quantified where the slide's data allows.",
+      ),
   });
 }

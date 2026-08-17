@@ -7,7 +7,7 @@ export const MODEL_OPTIONS = [
 export type ModelId = (typeof MODEL_OPTIONS)[number]["value"];
 
 export const MODEL_LABEL: Record<string, string> = Object.fromEntries(
-  MODEL_OPTIONS.map((m) => [m.value, m.label])
+  MODEL_OPTIONS.map((m) => [m.value, m.label]),
 );
 
 /** Single-slide edits default to the fast/cheap tier regardless of the deck

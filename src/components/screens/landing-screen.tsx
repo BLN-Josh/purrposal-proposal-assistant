@@ -35,13 +35,10 @@ import { MODEL_OPTIONS, MODEL_LABEL } from "@/lib/models";
 import { cn } from "@/lib/utils";
 import { ACCEPTED_EXTENSIONS, MAX_FILE_LABEL } from "@/config/upload";
 
+// The dalay before rise animation
 const START_FADE_MS = 260;
-
-/** Stagger at the call site: every `animate-*` entrance utility reads `--d`. */
 const delay = (ms: number) => ({ "--d": `${ms}ms` }) as CSSProperties;
 
-/** The headline, pre-split so each word can ride up on its own beat. The
- * accent word carries the marker swipe. */
 const HEADLINE = [
   "Turn",
   "a",
@@ -62,9 +59,6 @@ const PROMISE_TAGS = [
   "Commercials",
 ];
 
-/** The whole product in three beats. This lives in the band between the CTA
- * and the marquee — space that was otherwise dead on a tall viewport, and
- * the one question a first-time visitor actually has. */
 const STEPS = [
   {
     icon: FileUp,
@@ -83,8 +77,6 @@ const STEPS = [
   },
 ];
 
-/** Purely illustrative — the same 10-section deck shape used by the "Full
- * proposal" shape, previewed here before the user has typed anything. */
 const DECK_PREVIEW: MiniSlideSpec[] = (
   [
     { kind: "title", title: "Warehouse Management System" },
@@ -100,14 +92,6 @@ const DECK_PREVIEW: MiniSlideSpec[] = (
   ] as const
 ).map((s, i) => ({ ...s, num: String(i + 1).padStart(2, "0") }));
 
-/** Each row holds the full deck twice, so the marquee's -50% keyframe lands
- * exactly on the seam.
- *
- * The lower row is rotated by three and *not* reversed. Travelling the other
- * way already makes it read back-to-front against the top row; reversing the
- * array as well cancels that out and the two rows come back into lockstep,
- * looking like a reflection. The rotation plus the two rows' mismatched
- * periods (44s / 58s) is what keeps a card from sitting under its own twin. */
 const ROW_A = [...DECK_PREVIEW, ...DECK_PREVIEW];
 const ROW_B_BASE = [...DECK_PREVIEW.slice(3), ...DECK_PREVIEW.slice(0, 3)];
 const ROW_B = [...ROW_B_BASE, ...ROW_B_BASE];
@@ -147,8 +131,7 @@ export function LandingScreen() {
   const slideCount = shape.sections.length;
   const readMinutes = estimateReadMinutes(deckShape, depth);
 
-  /** Progress toward the 20-character minimum, for the meter under the
-   * brief. Caps at 1 — past the threshold the bar is simply full. */
+  /** Progress toward the 20-character minimum, for the meter. */
   const briefProgress = Math.min(1, chars / 20);
 
   function handleStart() {
@@ -161,18 +144,18 @@ export function LandingScreen() {
   }
 
   return (
-    <div className="bg-grain relative flex flex-1 flex-col overflow-x-hidden overflow-y-auto">
+    <div className="relative flex flex-1 flex-col overflow-x-hidden overflow-y-auto bg-grain">
       <AmbientBackdrop />
 
       <div className="relative flex min-h-full w-full flex-col items-center px-6 pt-7 pb-8">
-        <header className="animate-rise flex w-full max-w-180 items-center justify-between">
+        <header className="flex w-full max-w-180 animate-rise items-center justify-between">
           <span className="group font-display text-[15px] font-semibold tracking-tight text-foreground">
             Balerion
             <span className="mt-0.5 block h-px w-0 bg-gradient-to-r from-brand-1 to-brand-5 transition-all duration-500 [transition-timing-function:var(--ease-smooth)] group-hover:w-full" />
           </span>
           <span className="flex items-center gap-2 rounded-full bg-card/70 px-3 py-1.5 font-mono text-[11px] tracking-[0.02em] text-detail ring-1 ring-foreground/8 backdrop-blur-sm">
             <span className="relative flex size-1.5">
-              <span className="animate-halo absolute inset-0 rounded-full bg-brand-4" />
+              <span className="absolute inset-0 animate-halo rounded-full bg-brand-4" />
               <span className="relative size-1.5 rounded-full bg-brand-4" />
             </span>
             nothing leaves this browser
@@ -186,7 +169,7 @@ export function LandingScreen() {
           )}
         >
           <span
-            className="animate-rise inline-flex items-center gap-2 rounded-full bg-highlight/50 px-3.5 py-1.5 font-mono text-[10.5px] tracking-[0.16em] text-foreground/70 uppercase ring-1 ring-foreground/8"
+            className="inline-flex animate-rise items-center gap-2 rounded-full bg-highlight/50 px-3.5 py-1.5 font-mono text-[10.5px] tracking-[0.16em] text-foreground/70 uppercase ring-1 ring-foreground/8"
             style={delay(80)}
           >
             Proposal Assistant
@@ -201,23 +184,20 @@ export function LandingScreen() {
             )}
           >
             {HEADLINE.map((word, i) => (
-              /* The separator is a real space text node, not a margin on the
-                 word: a margin looks identical but leaves the accessible name
-                 — and anything the reader copies — as "Turnabriefintoa". */
+              /* A real space, not a margin — a margin breaks the accessible
+                 name and anything the reader copies. */
               <Fragment key={i}>
                 {i > 0 ? " " : null}
-                <span className="inline-block overflow-hidden pb-[0.14em] -mb-[0.14em] align-bottom">
+                <span className="-mb-[0.14em] inline-block overflow-hidden pb-[0.14em] align-bottom">
                   <span
-                    className="animate-word-up inline-block"
+                    className="inline-block animate-word-up"
                     style={delay(180 + i * 58)}
                   >
                     {word === ACCENT_WORD ? (
                       <span className="relative inline-block">
-                        {/* Marker swipe: sits inside the text box, so the
-                            clipping mask above never cuts it off. */}
                         <span
                           aria-hidden
-                          className="animate-draw-x absolute inset-x-[-0.05em] bottom-[0.055em] -z-10 h-[0.24em] rounded-[2px] bg-gradient-to-r from-brand-5/70 via-brand-4/48 to-brand-1/28"
+                          className="absolute inset-x-[-0.05em] bottom-[0.055em] -z-10 h-[0.24em] animate-draw-x rounded-[2px] bg-gradient-to-r from-brand-5/70 via-brand-4/48 to-brand-1/28"
                           style={delay(760)}
                         />
                         {word}
@@ -231,7 +211,7 @@ export function LandingScreen() {
             ))}
           </h1>
 
-          <div className="mt-4 flex max-w-140 flex-col items-center gap-3 text-[16px] leading-[1.6] text-detail text-wrap-pretty">
+          <div className="text-wrap-pretty mt-4 flex max-w-140 flex-col items-center gap-3 text-[16px] leading-[1.6] text-detail">
             <span className="animate-rise" style={delay(560)}>
               Hand over the client brief, get back a complete proposal, ready to
               pitch.
@@ -261,29 +241,27 @@ export function LandingScreen() {
               )}
             >
               <div
-                className="animate-rise mt-7 flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 font-mono text-[11.5px] text-detail"
+                className="mt-7 flex animate-rise flex-wrap items-center justify-center gap-x-3 gap-y-1.5 font-mono text-[11.5px] text-detail"
                 style={delay(1040)}
               >
-                {["16:9 deck · up to 10+ slides", "PowerPoint or PDF", "rate-card commercials"].map(
-                  (t, i) => (
-                    <span key={t} className="flex items-center gap-3">
-                      {/* Hairline only once the row is guaranteed to be one
-                          line — a wrapped row can otherwise start with a rule. */}
-                      {i > 0 ? (
-                        <span className="hidden h-3 w-px bg-border sm:block" />
-                      ) : null}
-                      {t}
-                    </span>
-                  ),
-                )}
+                {[
+                  "16:9 deck · up to 10+ slides",
+                  "PowerPoint or PDF",
+                  "rate-card commercials",
+                ].map((t, i) => (
+                  <span key={t} className="flex items-center gap-3">
+                    {i > 0 ? (
+                      <span className="hidden h-3 w-px bg-border sm:block" />
+                    ) : null}
+                    {t}
+                  </span>
+                ))}
               </div>
 
-              {/* The primary action is the one thing on this page that does
-                  not need selling. Hover moves the arrow and nothing else. */}
               <Button
                 size="lg"
                 onClick={handleStart}
-                className="group/cta animate-rise mt-8 h-13 gap-2 rounded-full px-9 text-[15.5px] shadow-soft-lg"
+                className="group/cta mt-8 h-13 animate-rise gap-2 rounded-full px-9 text-[15.5px] shadow-soft-lg"
                 style={delay(1100)}
               >
                 Start
@@ -294,11 +272,9 @@ export function LandingScreen() {
                 {STEPS.map((step, i) => (
                   <li
                     key={step.label}
-                    className="animate-rise group relative flex flex-col items-center gap-2.5 rounded-xl bg-card/50 px-4 py-5 text-center ring-1 ring-foreground/6 backdrop-blur-sm transition-all duration-500 [transition-timing-function:var(--ease-smooth)] hover:-translate-y-1 hover:bg-card/80 hover:shadow-soft-lg hover:ring-brand-4/25"
+                    className="group relative flex animate-rise flex-col items-center gap-2.5 rounded-xl bg-card/50 px-4 py-5 text-center ring-1 ring-foreground/6 backdrop-blur-sm transition-all duration-500 [transition-timing-function:var(--ease-smooth)] hover:-translate-y-1 hover:bg-card/80 hover:shadow-soft-lg hover:ring-brand-4/25"
                     style={delay(1180 + i * 90)}
                   >
-                    {/* The connector only exists between cards, and only once
-                        they sit on one row. */}
                     {i > 0 ? (
                       <span
                         aria-hidden
@@ -314,7 +290,7 @@ export function LandingScreen() {
                     <span className="text-[13.5px] leading-tight font-semibold text-foreground">
                       {step.label}
                     </span>
-                    <span className="text-[12px] leading-[1.45] text-detail text-wrap-pretty">
+                    <span className="text-wrap-pretty text-[12px] leading-[1.45] text-detail">
                       {step.detail}
                     </span>
                   </li>
@@ -347,7 +323,7 @@ export function LandingScreen() {
                     <span
                       key={fileName ? "file" : chars >= 20 ? "typed" : "wait"}
                       className={cn(
-                        "animate-rise flex items-center gap-1.5 font-mono text-[10.5px]",
+                        "flex animate-rise items-center gap-1.5 font-mono text-[10.5px]",
                         canGenerate ? "text-brand-1" : "text-detail",
                       )}
                     >
@@ -422,7 +398,7 @@ export function LandingScreen() {
                       >
                         {fileName ? (
                           <FileCheck2
-                            className="animate-pop-check size-4.5 text-brand-1"
+                            className="size-4.5 animate-pop-check text-brand-1"
                             strokeWidth={1.8}
                           />
                         ) : (
@@ -478,8 +454,6 @@ export function LandingScreen() {
                       className="h-33 resize-none bg-card text-[14px] leading-[1.55] transition-shadow duration-300 [transition-timing-function:var(--ease-smooth)] focus-visible:shadow-soft-lg"
                     />
                     <div className="flex items-center justify-between gap-3">
-                      {/* The meter is the 20-character floor made visible —
-                          "0 characters" alone never said how many were enough. */}
                       <span className="h-[3px] max-w-36 flex-1 overflow-hidden rounded-full bg-border/70">
                         <span
                           className={cn(
@@ -554,7 +528,7 @@ export function LandingScreen() {
                             >
                               {on ? (
                                 <Check
-                                  className="animate-pop-check size-2.5"
+                                  className="size-2.5 animate-pop-check"
                                   strokeWidth={3}
                                 />
                               ) : null}
@@ -563,7 +537,7 @@ export function LandingScreen() {
                           <span className="font-mono text-[10.5px] text-detail">
                             {opt.sections.length} slides
                           </span>
-                          <span className="text-[11.5px] leading-[1.45] text-detail text-wrap-pretty">
+                          <span className="text-wrap-pretty text-[11.5px] leading-[1.45] text-detail">
                             {opt.description}
                           </span>
                         </button>
@@ -578,9 +552,6 @@ export function LandingScreen() {
                       aria-label="Depth"
                       className="relative flex rounded-lg border border-border bg-card p-0.75"
                     >
-                      {/* One pill that slides between the three slots, rather
-                          than three backgrounds cross-fading — the travel is
-                          what tells you the control is a single axis. */}
                       <span
                         aria-hidden
                         className="pointer-events-none absolute inset-y-0.75 left-0.75 rounded-md bg-accent shadow-soft transition-transform duration-[450ms] [transition-timing-function:var(--ease-spring)]"
@@ -614,7 +585,7 @@ export function LandingScreen() {
               </Card>
 
               <div
-                className="animate-rise relative flex flex-wrap items-center justify-between gap-4 overflow-hidden rounded-xl bg-foreground px-5 py-4 shadow-soft-lg"
+                className="relative flex animate-rise flex-wrap items-center justify-between gap-4 overflow-hidden rounded-xl bg-foreground px-5 py-4 shadow-soft-lg"
                 style={delay(240)}
               >
                 <span
@@ -679,31 +650,28 @@ export function LandingScreen() {
         </main>
 
         {!started ? (
-          /* Sits outside <main> so the hero centres in the space above it and
-             the strip stays pinned to the fold, rather than both fighting for
-             the same flexible middle. Two tracks drifting apart; hovering
-             anywhere in the strip pauses both, so a card that catches the eye
-             can actually be read. */
+          /* Outside <main> so the hero centres above it. Hovering pauses
+             both tracks. */
           <div
             className={cn(
-              "animate-rise mt-14 w-screen transition-opacity duration-250 ease-out",
+              "mt-14 w-screen animate-rise transition-opacity duration-250 ease-out",
               leaving ? "opacity-0" : "opacity-100",
             )}
             style={delay(1460)}
           >
             <div
               aria-hidden
-              className="group/marquee flex flex-col gap-4 [-webkit-mask-image:linear-gradient(90deg,transparent_0,black_11%,black_89%,transparent_100%)] [mask-image:linear-gradient(90deg,transparent_0,black_11%,black_89%,transparent_100%)]"
+              className="group/marquee flex flex-col gap-4 [mask-image:linear-gradient(90deg,transparent_0,black_11%,black_89%,transparent_100%)] [-webkit-mask-image:linear-gradient(90deg,transparent_0,black_11%,black_89%,transparent_100%)]"
             >
               <div className="overflow-hidden">
-                <div className="animate-marquee flex w-max group-hover/marquee:[animation-play-state:paused]">
+                <div className="flex w-max animate-marquee group-hover/marquee:[animation-play-state:paused]">
                   {ROW_A.map((s, i) => (
                     <MiniSlide key={`a-${i}`} {...s} />
                   ))}
                 </div>
               </div>
               <div className="overflow-hidden opacity-65">
-                <div className="animate-marquee-reverse flex w-max group-hover/marquee:[animation-play-state:paused]">
+                <div className="flex w-max animate-marquee-reverse group-hover/marquee:[animation-play-state:paused]">
                   {ROW_B.map((s, i) => (
                     <MiniSlide key={`b-${i}`} {...s} />
                   ))}
@@ -714,7 +682,7 @@ export function LandingScreen() {
         ) : null}
 
         <footer
-          className="animate-rise mt-9 flex items-center gap-3 font-mono text-[11px] text-detail"
+          className="mt-9 flex animate-rise items-center gap-3 font-mono text-[11px] text-detail"
           style={delay(1560)}
         >
           <span>Powered by Anthropic&rsquo;s Claude</span>

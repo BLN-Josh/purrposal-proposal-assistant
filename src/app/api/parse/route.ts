@@ -13,30 +13,27 @@ export const dynamic = "force-dynamic";
 const READ_FAILURE = `Couldn't read that file. ${UNSUPPORTED_FILE_MESSAGE}`;
 const OVERSIZE_MESSAGE = `Keep the source document under ${MAX_FILE_BYTES / (1024 * 1024)}MB.`;
 
-/** Recommending a different format is useless advice when the format was
- * fine and the file simply had no text in it — a blank .txt, or a scan with
- * no text layer. */
 const NO_TEXT_FOUND =
   "That file has no readable text in it. If it's a scan or an image-only PDF, paste the text directly.";
 
-/** Bare-bones PPTX text extraction: a .pptx is a zip of XML parts, and each
- * slide's visible text sits in <a:t> runs — good enough to feed an LLM
- * prompt without pulling in a full OOXML parser. */
 async function extractPptxText(buffer: Buffer): Promise<string> {
   const zip = await JSZip.loadAsync(buffer);
   const slideFiles = Object.keys(zip.files)
     .filter((name) => /^ppt\/slides\/slide\d+\.xml$/.test(name))
     .sort((a, b) => {
-      const numOf = (n: string) => Number(n.match(/slide(\d+)\.xml$/)?.[1] ?? 0);
+      const numOf = (n: string) =>
+        Number(n.match(/slide(\d+)\.xml$/)?.[1] ?? 0);
       return numOf(a) - numOf(b);
     });
 
   const slideTexts = await Promise.all(
     slideFiles.map(async (name) => {
       const xml = await zip.files[name].async("text");
-      const runs = [...xml.matchAll(/<a:t>([^<]*)<\/a:t>/g)].map((m) => decodeXmlEntities(m[1]));
+      const runs = [...xml.matchAll(/<a:t>([^<]*)<\/a:t>/g)].map((m) =>
+        decodeXmlEntities(m[1]),
+      );
       return runs.join(" ").trim();
-    })
+    }),
   );
 
   return slideTexts
@@ -54,16 +51,7 @@ function decodeXmlEntities(s: string): string {
     .replace(/&amp;/g, "&");
 }
 
-/**
- * Never writes the upload to a fixed path on disk — parses entirely from
- * an in-memory buffer, so concurrent uploads from different demo users
- * can't clobber each other (Technical Design Document §6.2).
- */
 export async function POST(request: Request) {
-  // `file.size` can only be consulted after formData() has already buffered
-  // the whole upload — a 2GB post would be paid for in full before being
-  // refused. The declared envelope size is the one bound available first;
-  // it carries the multipart framing as well as the file, hence the slack.
   if (exceedsDeclaredSize(request, MAX_FILE_BYTES + MULTIPART_OVERHEAD_BYTES)) {
     return Response.json({ error: OVERSIZE_MESSAGE }, { status: 413 });
   }
@@ -98,7 +86,7 @@ export async function POST(request: Request) {
     } else {
       return Response.json(
         { error: `Unsupported file type. ${UNSUPPORTED_FILE_MESSAGE}` },
-        { status: 400 }
+        { status: 400 },
       );
     }
 

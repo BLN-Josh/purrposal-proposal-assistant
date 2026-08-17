@@ -35,7 +35,7 @@ export default function Home() {
     <div
       className={cn(
         "flex min-h-0 flex-1 flex-col transition-opacity duration-200 ease-out",
-        fading ? "opacity-0" : "opacity-100"
+        fading ? "opacity-0" : "opacity-100",
       )}
     >
       <ScreenComponent />

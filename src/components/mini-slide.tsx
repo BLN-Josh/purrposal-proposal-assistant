@@ -1,17 +1,5 @@
 import { cn } from "@/lib/utils";
 
-/**
- * Thumbnail-scale caricatures of the deck's slide layouts, for the landing
- * marquee only.
- *
- * These are deliberately *not* the real slide renderers at small scale:
- * nothing here reads type or data, and none of it is exported. What matters
- * is that a passing glance can tell a table from a timeline from a team
- * page — the promise the marquee is making is "you get structured slides,
- * not a wall of bullets", and eight identical bar-stacks make the opposite
- * case. Everything is decorative and `aria-hidden` at the track level.
- */
-
 export type MiniSlideKind =
   | "title"
   | "summary"
@@ -61,7 +49,7 @@ function Body({ kind }: { kind: MiniSlideKind }) {
 
     case "summary":
       return (
-        <div className="mt-1.5 grid flex-1 grid-cols-2 gap-x-2.5 gap-y-1.5 content-start">
+        <div className="mt-1.5 grid flex-1 grid-cols-2 content-start gap-x-2.5 gap-y-1.5">
           {[0, 1].map((c) => (
             <div key={c} className="flex flex-col gap-1.5">
               <Line w="52%" strong />
@@ -190,7 +178,7 @@ export function MiniSlide({ kind, title, num }: MiniSlideSpec) {
     <div
       className={cn(
         "group/mini mr-4 flex aspect-video w-58 flex-none flex-col overflow-hidden rounded-xl bg-card p-3.5 text-left",
-        "shadow-soft ring-1 ring-foreground/8 transition-all duration-500 [transition-timing-function:var(--ease-smooth)]",
+        "ring-1 shadow-soft ring-foreground/8 transition-all duration-500 [transition-timing-function:var(--ease-smooth)]",
         "hover:-translate-y-1.5 hover:shadow-lift hover:ring-brand-4/35",
       )}
     >
@@ -201,7 +189,7 @@ export function MiniSlide({ kind, title, num }: MiniSlideSpec) {
       </span>
       <span
         className={cn(
-          "mt-1 font-display leading-tight text-foreground text-wrap-pretty",
+          "text-wrap-pretty mt-1 font-display leading-tight text-foreground",
           kind === "title" ? "text-[15px]" : "text-[12.5px]",
         )}
       >

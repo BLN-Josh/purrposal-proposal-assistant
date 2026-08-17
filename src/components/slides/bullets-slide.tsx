@@ -1,6 +1,11 @@
 import type { BulletsSlide } from "@/lib/slides/schema";
 import { cn } from "@/lib/utils";
-import { SlideSurface, SlideTitle, SlideBody, accentFor } from "./slide-primitives";
+import {
+  SlideSurface,
+  SlideTitle,
+  SlideBody,
+  accentFor,
+} from "./slide-primitives";
 
 /** UND-05 — one layout, two densities. A row with a `label` becomes the
  * two-column pain-point row (tinted label cell + grey description); a row
@@ -18,7 +23,9 @@ export function BulletsSlideBody({ slide }: { slide: BulletsSlide }) {
       />
       <SlideBody className="gap-[0.9cqw]">
         {slide.intro ? (
-          <p className="shrink-0 text-[1.5cqw] leading-[1.4] text-pretty text-slide-body">{slide.intro}</p>
+          <p className="shrink-0 text-[1.5cqw] leading-[1.4] text-pretty text-slide-body">
+            {slide.intro}
+          </p>
         ) : null}
 
         <div className="flex min-h-0 flex-1 flex-col gap-[0.6cqw]">
@@ -32,7 +39,7 @@ export function BulletsSlideBody({ slide }: { slide: BulletsSlide }) {
                 <div
                   className={cn(
                     "flex w-[19cqw] shrink-0 items-center rounded-[0.5cqw] px-[1cqw] py-[0.7cqw] text-[1.35cqw] leading-[1.25] font-semibold text-slide-ink",
-                    accent.tintStrong
+                    accent.tintStrong,
                   )}
                 >
                   {row.label}
@@ -46,12 +53,12 @@ export function BulletsSlideBody({ slide }: { slide: BulletsSlide }) {
                 key={i}
                 className={cn(
                   "flex min-h-0 flex-1 items-center overflow-hidden rounded-[0.5cqw] px-[1.1cqw] py-[0.7cqw] text-[1.4cqw] leading-[1.35] text-pretty text-slide-ink",
-                  accent.tint
+                  accent.tint,
                 )}
               >
                 {row.text}
               </div>
-            )
+            ),
           )}
         </div>
 

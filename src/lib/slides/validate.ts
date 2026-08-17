@@ -13,18 +13,11 @@ import { estimateTextHeight } from "@/lib/pptx/helpers";
  * warnings a human should see, not parse failures, so they never block an
  * export.
  *
- * Two rules belong to neither side. "Exactly one recommended option" and
- * "cells aligned to criteria" are structural, but a zod discriminated union
- * cannot hold refined members — so the `.refine()`s on `ComparisonContent`
- * never ran on any path that actually parsed a slide. They are repaired in
- * lib/slides/repair.ts instead, on both the generate and edit paths.
- *
  * Spec rules deliberately not implemented, and why:
  *  - V03 (section label enum): unrepresentable thanks to the zod enum.
- *  - V06 (option count / one recommended): the count is bounded by the
- *    schema; the "exactly one recommended" half is repaired in
- *    lib/slides/repair.ts on both the generate and edit paths, so a
- *    violation cannot reach this file.
+ *  - V06 (option count / one recommended): count is bounded by the schema,
+ *    and the recommended half is repaired in lib/slides/repair.ts — a zod
+ *    union cannot hold refined members, so it could not live in the schema.
  *  - V12 (one accent family per slide): structurally guaranteed — a slide
  *    carries a single `domain`, so it cannot mix families.
  *  - V09 (UND-07 row cap), V15 (domain mirroring §4↔§6): those layouts and
@@ -53,7 +46,8 @@ const hasNumeral = (s: string) => /\d/.test(s);
 
 /** Currency mentions the spec wants confined to the summary and commercial
  * slides ("money appears exactly twice"). */
-const MONEY = /(?:THB|USD|EUR|฿|\$)\s?[\d,.]+|\b\d[\d,.]*\s?(?:mn|million|bn)\b/i;
+const MONEY =
+  /(?:THB|USD|EUR|฿|\$)\s?[\d,.]+|\b\d[\d,.]*\s?(?:mn|million|bn)\b/i;
 const PLACEHOLDER = /x{3,}|lorem|ipsum|\bTODO\b|\[insert/i;
 
 /** Every free-text string a slide carries, for the checks that scan prose. */
@@ -61,8 +55,12 @@ function textsOf(s: Slide): string[] {
   const out: string[] = [];
   if ("assertion" in s && s.assertion) out.push(s.assertion);
   switch (s.kind) {
-    case "title": out.push(s.title, s.subtitle ?? "", s.date); break;
-    case "divider": out.push(s.sectionName, s.deckSubtitle ?? "", s.scopeNote ?? ""); break;
+    case "title":
+      out.push(s.title, s.subtitle ?? "", s.date);
+      break;
+    case "divider":
+      out.push(s.sectionName, s.deckSubtitle ?? "", s.scopeNote ?? "");
+      break;
     case "summary":
       for (const r of s.rows) {
         out.push(r.label, ...r.bullets);
@@ -79,12 +77,14 @@ function textsOf(s: Slide): string[] {
       break;
     case "table":
       out.push(s.group ?? "");
-      for (const r of s.rows) out.push(r.feature, r.description, r.details, r.actionSupport);
+      for (const r of s.rows)
+        out.push(r.feature, r.description, r.details, r.actionSupport);
       break;
     case "valueChain":
       for (const b of s.blocks) {
         out.push(b.caption ?? "");
-        for (const r of b.rows) out.push(r.feature, r.task, r.output, r.outcome, r.benefit);
+        for (const r of b.rows)
+          out.push(r.feature, r.task, r.output, r.outcome, r.benefit);
       }
       break;
     case "timeline":
@@ -126,17 +126,29 @@ export function lintDeck(slides: Slide[]): Finding[] {
       // V01 — the spec's own decks break this and the result is a 3-line
       // title colliding with content; it is a defect to avoid, not copy.
       if (w < 8 || w > 18) {
-        add("V01", "error", `Assertion is ${w} words; must be 8–18. "${s.assertion.slice(0, 60)}…"`);
+        add(
+          "V01",
+          "error",
+          `Assertion is ${w} words; must be 8–18. "${s.assertion.slice(0, 60)}…"`,
+        );
       }
       // V02 — if the slide's own data is countable, the headline should say so.
       const dataHasNumeral = texts.slice(1).some(hasNumeral);
       if (dataHasNumeral && !hasNumeral(s.assertion)) {
-        add("V02", "warn", "Slide data contains figures but the assertion states no number.");
+        add(
+          "V02",
+          "warn",
+          "Slide data contains figures but the assertion states no number.",
+        );
       }
       // V16
       const dup = seenAssertions.get(s.assertion.toUpperCase());
       if (dup !== undefined) {
-        add("V16", "error", `Duplicate assertion — same text as slide ${dup + 1}.`);
+        add(
+          "V16",
+          "error",
+          `Duplicate assertion — same text as slide ${dup + 1}.`,
+        );
       } else {
         seenAssertions.set(s.assertion.toUpperCase(), i);
       }
@@ -147,18 +159,35 @@ export function lintDeck(slides: Slide[]): Finding[] {
     if (s.kind === "summary") {
       for (const r of s.rows) {
         if (!r.bullets.length && !r.options?.length) {
-          add("V04", "error", `Summary row "${r.label}" has neither bullets nor option boxes.`);
+          add(
+            "V04",
+            "error",
+            `Summary row "${r.label}" has neither bullets nor option boxes.`,
+          );
         }
         for (const b of r.bullets) {
-          if (words(b) > 16) add("V04", "error", `Summary row "${r.label}" has a ${words(b)}-word bullet (max 16).`);
+          if (words(b) > 16)
+            add(
+              "V04",
+              "error",
+              `Summary row "${r.label}" has a ${words(b)}-word bullet (max 16).`,
+            );
         }
       }
     }
 
     // V05 — the pain-point layout wants exactly 5 rows; only meaningful for
     // the labelled (true UND-05) variant, not generic bullet slides.
-    if (s.kind === "bullets" && s.rows.every((r) => r.label) && s.rows.length !== 5) {
-      add("V05", "warn", `Pain-point slide has ${s.rows.length} rows; the layout is designed for 5.`);
+    if (
+      s.kind === "bullets" &&
+      s.rows.every((r) => r.label) &&
+      s.rows.length !== 5
+    ) {
+      add(
+        "V05",
+        "warn",
+        `Pain-point slide has ${s.rows.length} rows; the layout is designed for 5.`,
+      );
     }
 
     // V07 — SOL-06's value is the five-column contract being fully populated.
@@ -166,8 +195,18 @@ export function lintDeck(slides: Slide[]): Finding[] {
       for (const block of s.blocks) {
         for (const r of block.rows) {
           for (const [col, val] of Object.entries(r)) {
-            if (!val.trim()) add("V07", "error", `Value-chain row "${r.feature}" has an empty ${col} cell.`);
-            else if (words(val) > 12) add("V07", "error", `Value-chain ${col} cell is ${words(val)} words (max 12).`);
+            if (!val.trim())
+              add(
+                "V07",
+                "error",
+                `Value-chain row "${r.feature}" has an empty ${col} cell.`,
+              );
+            else if (words(val) > 12)
+              add(
+                "V07",
+                "error",
+                `Value-chain ${col} cell is ${words(val)} words (max 12).`,
+              );
           }
         }
       }
@@ -175,7 +214,11 @@ export function lintDeck(slides: Slide[]): Finding[] {
 
     // V08 — SOL-08 overflows past 3 rows per group; spec wants pagination.
     if (s.kind === "table" && s.rows.length > 3) {
-      add("V08", "warn", `Feature table has ${s.rows.length} rows; split at 3 per slide and paginate (n/m).`);
+      add(
+        "V08",
+        "warn",
+        `Feature table has ${s.rows.length} rows; split at 3 per slide and paginate (n/m).`,
+      );
     }
 
     // V10
@@ -190,16 +233,22 @@ export function lintDeck(slides: Slide[]): Finding[] {
     if (s.kind !== "summary" && s.kind !== "commercial") {
       const offender = texts.find((x) => MONEY.test(x));
       if (offender) {
-        add("V11", "warn", `Currency figure outside the summary/commercial slides: "${offender.slice(0, 50)}…"`);
+        add(
+          "V11",
+          "warn",
+          `Currency figure outside the summary/commercial slides: "${offender.slice(0, 50)}…"`,
+        );
       }
     }
 
     // V17 / V18 — the defects the spec catalogues in the real source decks.
     for (const x of texts) {
-      if (PLACEHOLDER.test(x)) add("V17", "error", `Unresolved placeholder: "${x.slice(0, 50)}…"`);
+      if (PLACEHOLDER.test(x))
+        add("V17", "error", `Unresolved placeholder: "${x.slice(0, 50)}…"`);
       const opens = (x.match(/\(/g) ?? []).length;
       const closes = (x.match(/\)/g) ?? []).length;
-      if (opens !== closes) add("V18", "warn", `Unbalanced parentheses: "${x.slice(0, 50)}…"`);
+      if (opens !== closes)
+        add("V18", "warn", `Unbalanced parentheses: "${x.slice(0, 50)}…"`);
     }
 
     // V14 — the row-stack layouts distribute rows evenly across the content
@@ -213,16 +262,17 @@ export function lintDeck(slides: Slide[]): Finding[] {
       const size = s.kind === "summary" ? 9 : 10;
 
       s.rows.forEach((r, ri) => {
-        const body = s.kind === "summary"
-          ? ("bullets" in r ? r.bullets : []).join("\n")
-          : (r as { text: string }).text;
+        const body =
+          s.kind === "summary"
+            ? ("bullets" in r ? r.bullets : []).join("\n")
+            : (r as { text: string }).text;
         if (!body) return;
         const needed = estimateTextHeight(body, textW, size);
         if (needed > rowH) {
           add(
             "V14",
             "warn",
-            `Row ${ri + 1} needs about ${needed.toFixed(2)}in but its box is ${rowH.toFixed(2)}in — text will clip. Shorten it or drop a row.`
+            `Row ${ri + 1} needs about ${needed.toFixed(2)}in but its box is ${rowH.toFixed(2)}in — text will clip. Shorten it or drop a row.`,
           );
         }
       });
@@ -233,7 +283,11 @@ export function lintDeck(slides: Slide[]): Finding[] {
       const anyCost = s.rows.some((r) => r.cost.trim());
       const blank = s.rows.filter((r) => !r.cost.trim());
       if (anyCost && blank.length) {
-        add("V19", "warn", `${blank.length} commercial row(s) have an empty Cost cell while others are filled.`);
+        add(
+          "V19",
+          "warn",
+          `${blank.length} commercial row(s) have an empty Cost cell while others are filled.`,
+        );
       }
     }
 
@@ -260,18 +314,8 @@ export function lintDeck(slides: Slide[]): Finding[] {
     }
   }
 
-  /**
-   * Deck-level structural checks.
-   *
-   * These three were blind spots: a deck could carry duplicate ids, two
-   * covers, or an entirely blank slide and lint completely clean. Each is
-   * invisible in the preview but breaks something downstream — which is
-   * exactly the class of defect a linter exists to catch before an export.
-   */
-
-  // V17 — duplicate ids. The renderers key by array index, so a collision is
-  // silent on screen, but `sel`/`flash`/`errIds` are id-based and every one
-  // of them would then address two slides at once.
+  // V17 — duplicate ids. Renderers key by index so a collision is silent on
+  // screen, but `sel`/`flash`/`errIds` are id-based and would address both.
   const idFirstSeen = new Map<string, number>();
   slides.forEach((s, i) => {
     const first = idFirstSeen.get(s.id);
@@ -300,9 +344,8 @@ export function lintDeck(slides: Slide[]): Finding[] {
     });
   }
 
-  // V19 — a slide with no readable text at all. `textsOf` filters falsy
-  // strings, so an all-empty slide produced an empty list and every
-  // text-based rule above simply had nothing to fire on.
+  // V19 — no readable text at all. `textsOf` filters falsy strings, so an
+  // all-empty slide gave every text rule above nothing to fire on.
   slides.forEach((s, i) => {
     if (s.kind === "placeholder") return;
     const hasText = textsOf(s).some((t) => t.trim().length > 0);
