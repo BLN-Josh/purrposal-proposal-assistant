@@ -8,11 +8,20 @@ import { NextResponse } from "next/server";
  * - `/sso-callback` — the OAuth handshake route. The visitor is by
  *   definition not yet signed in when Microsoft redirects them back through
  *   it, so gating it would deadlock sign-in.
+ * - `/api/blob/upload` — the client-upload token route. Its completion leg
+ *   is called by Vercel's own servers, not the browser, so it carries no
+ *   Clerk session for this gate to check. Auth for the *other* leg (issuing
+ *   the upload token) happens inside that route's `onBeforeGenerateToken`
+ *   instead — see the comment there.
  *
  * Everything else is closed. There is no separate `/sign-in` route to send
  * people to, so a signed-out page request lands back on the landing hero.
  */
-const isPublicRoute = createRouteMatcher(["/", "/sso-callback(.*)"]);
+const isPublicRoute = createRouteMatcher([
+  "/",
+  "/sso-callback(.*)",
+  "/api/blob/upload",
+]);
 
 /** API calls get a status code; a 302 to an HTML page is useless to `fetch`. */
 const isApiRoute = createRouteMatcher(["/api(.*)"]);

@@ -5,16 +5,39 @@ import type {
   EditResponse,
   SlideOutlineEntry,
 } from "@/lib/api-types";
+import { timestampedPathname } from "@/lib/blob-pathname";
 
 const NETWORK_FAILURE =
   "Couldn't reach the server. Check your connection and try again.";
 
+/**
+ * Uploads straight from the browser to Blob storage (bypassing the ~4.5MB
+ * body limit a request through our own server would hit on Vercel), then
+ * asks `/api/parse` to fetch that blob back and extract its text.
+ *
+ * `@vercel/blob/client` is dynamically imported so it never lands in the
+ * landing page's initial bundle — only visitors who actually attach a file
+ * pay for it.
+ */
 export async function parseFile(
   file: File,
 ): Promise<{ extractedText: string }> {
-  const body = new FormData();
-  body.append("file", file);
-  const res = await fetch("/api/parse", { method: "POST", body }).catch(() => {
+  const { upload } = await import("@vercel/blob/client");
+
+  const blob = await upload(timestampedPathname(file.name), file, {
+    access: "private",
+    handleUploadUrl: "/api/blob/upload",
+  }).catch((err) => {
+    throw new Error(
+      err instanceof Error ? err.message : "Couldn't upload that file.",
+    );
+  });
+
+  const res = await fetch("/api/parse", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ pathname: blob.pathname }),
+  }).catch(() => {
     throw new Error(NETWORK_FAILURE);
   });
   if (!res.ok) {
