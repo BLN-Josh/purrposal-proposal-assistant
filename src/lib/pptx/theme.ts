@@ -93,6 +93,18 @@ export const PAGE = {
   titleH: 1.02,
 } as const;
 
+/**
+ * One container-query unit in inches. The renderer sizes every slide in
+ * `cqw` against a 13.333in-wide slide, so `Ncqw` is `N * CQW` inches and a
+ * font of `Ncqw` is `N * 9.6` points. Porting a value from a component is
+ * therefore mechanical — and staying mechanical is what keeps the export
+ * matching the preview.
+ */
+export const CQW = PAGE.w / 100;
+
+/** Points to inches, for turning a type size into the height it occupies. */
+export const pt = (size: number) => size / 72;
+
 export const STROKE = { hairline: 0.75, accent: 1.0 } as const;
 export const GAP = {
   tight: 0.06,
@@ -130,6 +142,8 @@ export interface ResolvedTheme {
   white: string;
   gray700: string;
   gray500: string;
+  /** `--slide-body` in globals.css — the body-copy ink on a slide. */
+  slideBody: string;
   gray100: string;
   border: string;
   /** Derived from `accent`/`accentSecondary` so custom accents stay coherent. */
@@ -189,6 +203,7 @@ export function resolveTheme(o: DeckThemeOverrides = {}): ResolvedTheme {
     white: "FFFFFF",
     gray700: "595959",
     gray500: "808080",
+    slideBody: "333333",
     gray100: "F2F2F2",
     border: "BFBFBF",
     tintPrimary: tint(accent, 0.88),
@@ -211,19 +226,25 @@ export function resolveTheme(o: DeckThemeOverrides = {}): ResolvedTheme {
  * 1cqw = 9.6pt, so the export keeps the preview's hierarchy.
  */
 export const TYPE = {
-  /** 1.3cqw */
-  sectionLabel: { size: 12, bold: true },
+  /** 1.3cqw */ sectionLabel: { size: 12.5, bold: false },
   /** 2.5cqw — the slide's conclusion, and the largest type on it. */
-  assertion: { size: 23, bold: true },
-  coverTitle: { size: 26, bold: true },
-  coverDate: { size: 14, bold: true },
-  boxHeading: { size: 10, bold: true },
-  tableHeader: { size: 8, bold: true },
-  tableBody: { size: 8, bold: false },
-  bulletBody: { size: 9, bold: false },
-  bannerText: { size: 11, bold: false },
-  footnote: { size: 8, bold: false, italic: true },
-  footerLabel: { size: 9, bold: false },
+  assertion: { size: 24, bold: true },
+  /** title-slide 2.5cqw */ coverTitle: { size: 24, bold: true },
+  /** divider-slide 4.2cqw — the chapter break's one big statement. */
+  dividerTitle: { size: 40, bold: true },
+  /** title-slide 1.5cqw */ coverSubtitle: { size: 14.4, bold: false },
+  /** title-slide 2cqw */ coverDate: { size: 19.2, bold: true },
+  /** bullets row label 1.4cqw */ boxHeading: { size: 13.4, bold: true },
+  /** table header 1.1cqw */ tableHeader: { size: 10.6, bold: true },
+  /** table body 1.15cqw */ tableBody: { size: 11, bold: false },
+  /** bullets/summary body 1.3cqw */ bulletBody: { size: 12.5, bold: false },
+  bannerText: { size: 12.5, bold: false },
+  /** SlideFootnote 1.1cqw */ footnote: {
+    size: 10.6,
+    bold: false,
+    italic: false,
+  },
+  /** SlideFurniture 1.05cqw */ footerLabel: { size: 10, bold: false },
   footerPage: { size: 10, bold: true },
 } as const;
 

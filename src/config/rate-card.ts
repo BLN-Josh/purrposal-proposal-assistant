@@ -1,13 +1,13 @@
 import type { Workstream } from "./types";
 
 export const RATE_CARD: Record<string, number> = {
-  "Solution Architect": 35000,
-  "Backend Developer": 22000,
-  "Frontend Developer": 20000,
-  "DevOps Engineer": 24000,
-  "QA Engineer": 18000,
-  "Change Management Lead": 20000,
-  "Business Consultant": 28000,
+  "Solution Architect": 33000,
+  "Backend Developer": 42000,
+  "Frontend Developer": 40000,
+  "DevOps Engineer": 74000,
+  "QA Engineer": 64000,
+  "Change Management Lead": 25000,
+  "Business Consultant": 50000,
 };
 
 export const WORKSTREAM_RATE_THB: Record<Workstream, number> = {

@@ -13,7 +13,24 @@
  */
 const PAGE_W = 1280;
 const PAGE_H = 720;
-const CAPTURE_SCALE = 2;
+
+/**
+ * Capture resolution, and why it is not simply "the card on screen".
+ *
+ * A slide card in the workspace is only as wide as the preview pane leaves
+ * it — often 700-800px. Capturing that at scale 2 produced a ~1500px image
+ * for a 1280pt page: barely 1:1, which is why the exported PDF read as
+ * screen-resolution mush. Instead each slide is re-laid-out off-screen at a
+ * fixed STAGE_W and captured at STAGE_SCALE, so the output is always
+ * 2560x1440 regardless of the window.
+ *
+ * This works because the slide is sized entirely in `cqw`: widening its
+ * container scales every dimension proportionally, so a 1280px stage is the
+ * same design as a 700px card, just resolved at more pixels.
+ */
+const STAGE_W = 1280;
+const STAGE_H = 720;
+const STAGE_SCALE = 2;
 
 /** Colour properties html2canvas parses. */
 const COLOR_PROPS = [
@@ -165,21 +182,26 @@ export async function exportSlidesToPdf(
   );
   if (!nodes.length) throw new Error("No slides to export.");
 
-  try {
-    const canvases = await Promise.all(
-      nodes.map((node) =>
-        html2canvas(node, {
-          scale: CAPTURE_SCALE,
-          backgroundColor: "#ffffff",
-          useCORS: false,
-          logging: false,
-          onclone: (_doc, cloned) => normalizeColorsForCapture(node, cloned),
-        }),
-      ),
-    );
+  // One off-screen stage, reused for every slide. Captures are therefore
+  // serial rather than parallel: a stage per slide would hold N full-size
+  // clones live at once, and at 2560x1440 each that is how a large deck runs
+  // the tab out of memory.
+  const stage = document.createElement("div");
+  stage.setAttribute("aria-hidden", "true");
+  stage.style.cssText = [
+    "position:fixed",
+    "left:-20000px",
+    "top:0",
+    `width:${STAGE_W}px`,
+    `height:${STAGE_H}px`,
+    "overflow:hidden",
+    "background:#ffffff",
+    "pointer-events:none",
+    "z-index:-1",
+  ].join(";");
+  document.body.appendChild(stage);
 
-    // compress: true shrinks the PDF's internal object streams losslessly —
-    // separate from (and in addition to) the per-image compression below.
+  try {
     const pdf = new jsPDF({
       orientation: "landscape",
       unit: "px",
@@ -187,8 +209,27 @@ export async function exportSlidesToPdf(
       compress: true,
     });
 
-    canvases.forEach((canvas, i) => {
+    for (let i = 0; i < nodes.length; i++) {
+      const clone = nodes[i].cloneNode(true) as HTMLElement;
+      clone.style.width = `${STAGE_W}px`;
+      clone.style.height = `${STAGE_H}px`;
+      stage.replaceChildren(clone);
+
+      const canvas = await html2canvas(clone, {
+        scale: STAGE_SCALE,
+        width: STAGE_W,
+        height: STAGE_H,
+        backgroundColor: "#ffffff",
+        useCORS: false,
+        logging: false,
+        onclone: (_doc, cloned) => normalizeColorsForCapture(clone, cloned),
+      });
+
       if (i > 0) pdf.addPage([PAGE_W, PAGE_H], "landscape");
+      // PNG with maximum deflate. Lossless, so no JPEG ringing on the
+      // hairlines and letterforms these slides are mostly made of — and
+      // essential for size: uncompressed, 2560x1440 per page put an 11-slide
+      // deck at 116MB.
       pdf.addImage(
         canvas.toDataURL("image/png"),
         "PNG",
@@ -197,9 +238,9 @@ export async function exportSlidesToPdf(
         PAGE_W,
         PAGE_H,
         undefined,
-        "FAST",
+        "SLOW",
       );
-    });
+    }
 
     pdf.save(filename);
   } catch (cause) {
@@ -207,5 +248,7 @@ export async function exportSlidesToPdf(
     // failure above sit undiagnosed.
     console.error("PDF export failed", cause);
     throw new Error("Couldn't render the PDF. Try again.", { cause });
+  } finally {
+    stage.remove();
   }
 }
