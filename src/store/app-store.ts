@@ -101,6 +101,10 @@ interface AppState {
    * to scroll the card into view and drop the caret in the composer, so the
    * next thing the user does after clicking + is type. */
   composerCue: number;
+  /** Bumped on every `moveSlide` call. The workspace watches it to re-center
+   * the moved card, so repeated up/down presses keep the view following it
+   * to its new position instead of leaving it to drift off-screen. */
+  moveCue: number;
 
   start: () => void;
   setAuthing: (authing: boolean) => void;
@@ -122,6 +126,10 @@ interface AppState {
   /** Insert an empty slide before position `index` (0 = top of deck). */
   addSlideAt: (index: number) => void;
   removeSlide: (id: string) => void;
+  /** Swap a slide with its immediate neighbor. No-op at either end of the
+   * deck — swapping slide 1 with slide 5 is five presses, one step at a
+   * time, so the view can follow it the whole way rather than jumping. */
+  moveSlide: (id: string, direction: "up" | "down") => void;
 
   setMenu: (open: boolean) => void;
   setExporting: (kind: "pptx" | "pdf" | null) => void;
@@ -158,6 +166,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   menu: false,
   exporting: null,
   composerCue: 0,
+  moveCue: 0,
 
   start: () => set({ started: true, authing: false }),
   setAuthing: (authing) => set({ authing }),
@@ -437,6 +446,23 @@ export const useAppStore = create<AppState>((set, get) => ({
         },
       },
     );
+  },
+
+  moveSlide: (id, direction) => {
+    const { slides } = get();
+    const index = slides.findIndex((s) => s.id === id);
+    if (index === -1) return;
+    const target = direction === "up" ? index - 1 : index + 1;
+    if (target < 0 || target >= slides.length) return;
+
+    set((s) => {
+      const next = [...s.slides];
+      const [moved] = next.splice(index, 1);
+      next.splice(target, 0, moved);
+      // Selecting the moved slide doubles as the "focus" signal the
+      // workspace's scroll-follow effect watches for.
+      return { slides: next, sel: [id], multi: false, moveCue: s.moveCue + 1 };
+    });
   },
 
   setMenu: (open) => set({ menu: open }),

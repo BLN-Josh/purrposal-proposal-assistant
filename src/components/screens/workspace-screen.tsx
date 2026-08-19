@@ -9,6 +9,7 @@ import {
   History,
   Loader2,
   MessageSquarePlus,
+  Play,
   Plus,
   X,
 } from "lucide-react";
@@ -35,11 +36,65 @@ import {
 import { SlideCard } from "@/components/slide-card";
 import { AddSlideButton } from "@/components/add-slide-button";
 import { DeckOutline } from "@/components/deck-outline";
+import { PresentationView } from "@/components/screens/presentation-view";
 import { MODEL_OPTIONS, MODEL_LABEL } from "@/lib/models";
 import { exportSlidesToPdf } from "@/lib/export-pdf";
 import { slugify } from "@/lib/download";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+
+/**
+ * `Element.scrollIntoView({behavior: "smooth"})` no-ops against this app's
+ * Base UI `<ScrollArea>` viewport — `scrollTop` never advances, even though
+ * the exact same call with `behavior: "instant"` works fine. Animating
+ * `scrollTop` by hand sidesteps whatever native smooth-scroll can't reach
+ * here, so the deck pane actually follows a slide instead of silently
+ * staying put.
+ *
+ * Cancels any animation already in flight before starting the next one —
+ * repeated arrow presses fire this faster than a 400ms scroll can finish,
+ * and two rAF loops fighting over the same `scrollTop` looks like a stutter
+ * rather than a slide settling into place.
+ */
+let scrollAnimationFrame: number | null = null;
+
+function scrollSlideIntoView(id: string, duration = 400) {
+  const el = document.getElementById(`slide-${id}`);
+  const closest = el?.closest<HTMLElement>(
+    '[data-slot="scroll-area-viewport"]',
+  );
+  if (!el || !closest) return;
+  const viewport = closest;
+
+  if (scrollAnimationFrame !== null) {
+    cancelAnimationFrame(scrollAnimationFrame);
+    scrollAnimationFrame = null;
+  }
+
+  const viewportRect = viewport.getBoundingClientRect();
+  const elRect = el.getBoundingClientRect();
+  const offset = elRect.top - viewportRect.top;
+  const centered = (viewport.clientHeight - elRect.height) / 2;
+  const from = viewport.scrollTop;
+  const to = Math.max(
+    0,
+    Math.min(
+      from + (offset - centered),
+      viewport.scrollHeight - viewport.clientHeight,
+    ),
+  );
+  if (to === from) return;
+
+  const start = performance.now();
+  const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
+
+  function step(now: number) {
+    const t = Math.min(1, (now - start) / duration);
+    viewport.scrollTop = from + (to - from) * easeOutCubic(t);
+    scrollAnimationFrame = t < 1 ? requestAnimationFrame(step) : null;
+  }
+  scrollAnimationFrame = requestAnimationFrame(step);
+}
 
 export function WorkspaceScreen() {
   const gridRef = useRef<HTMLDivElement>(null);
@@ -61,7 +116,9 @@ export function WorkspaceScreen() {
   const flash = useAppStore((s) => s.flash);
   const addSlideAt = useAppStore((s) => s.addSlideAt);
   const removeSlide = useAppStore((s) => s.removeSlide);
+  const moveSlide = useAppStore((s) => s.moveSlide);
   const composerCue = useAppStore((s) => s.composerCue);
+  const moveCue = useAppStore((s) => s.moveCue);
 
   const draft = useAppStore((s) => s.draft);
   const setDraft = useAppStore((s) => s.setDraft);
@@ -76,6 +133,7 @@ export function WorkspaceScreen() {
   const exportPptx = useAppStore((s) => s.exportPptx);
 
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [presenting, setPresenting] = useState(false);
 
   const selectionLabel = labelFor(sel, slides);
   const fullSelectionLabel = labelFor(sel, slides, Infinity);
@@ -87,13 +145,41 @@ export function WorkspaceScreen() {
   useEffect(() => {
     if (!composerCue) return;
     const id = useAppStore.getState().sel[0];
-    if (id) {
-      document
-        .getElementById(`slide-${id}`)
-        ?.scrollIntoView({ block: "center", behavior: "smooth" });
-    }
+    if (id) scrollSlideIntoView(id);
     composerRef.current?.focus();
   }, [composerCue]);
+
+  // Re-centers the moved slide after every up/down press, so a multi-step
+  // move (slide 1 down to position 5 is four presses) keeps the card in
+  // view the whole way instead of it drifting toward the edge of the pane.
+  useEffect(() => {
+    if (!moveCue) return;
+    const id = useAppStore.getState().sel[0];
+    if (id) scrollSlideIntoView(id);
+  }, [moveCue]);
+
+  function handlePresent() {
+    if (slides.length === 0) {
+      toast.error("Nothing to present yet", {
+        description: "Add a slide first.",
+      });
+      return;
+    }
+    // Must be called synchronously from this click handler — browsers only
+    // grant fullscreen off a direct user gesture, not after an awaited call
+    // or a state update. Fullscreening the whole document rather than a
+    // specific element sidesteps needing a ref to a node that doesn't exist
+    // until `presenting` flips true and `PresentationView` mounts.
+    document.documentElement.requestFullscreen?.().catch(() => {});
+    setPresenting(true);
+  }
+
+  function handleExitPresent() {
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    }
+    setPresenting(false);
+  }
 
   async function handleExportPdf() {
     if (exporting) return;
@@ -135,7 +221,7 @@ export function WorkspaceScreen() {
       <div className="flex h-14 flex-none items-center justify-between border-b border-border bg-card/85 px-5 backdrop-blur-md">
         <div className="flex min-w-0 items-center gap-3">
           <span className="hidden font-mono text-[10.5px] tracking-[0.12em] text-detail uppercase lg:inline">
-            Proposal Assistant
+            Purrposal
           </span>
           <span className="hidden h-5 w-px bg-border lg:block" />
           <span className="truncate font-display text-[17px] font-semibold text-foreground">
@@ -398,8 +484,12 @@ export function WorkspaceScreen() {
                       selected={sel.includes(s.id)}
                       flashing={flash.includes(s.id)}
                       errored={errIds.includes(s.id)}
+                      canMoveUp={i > 0}
+                      canMoveDown={i < slides.length - 1}
                       onSelect={() => pick(s.id)}
                       onRemove={() => removeSlide(s.id)}
+                      onMoveUp={() => moveSlide(s.id, "up")}
+                      onMoveDown={() => moveSlide(s.id, "down")}
                     />
                   </Fragment>
                 ))}
@@ -432,6 +522,19 @@ export function WorkspaceScreen() {
           </ScrollArea>
         </div>
       </div>
+
+      <button
+        type="button"
+        onClick={handlePresent}
+        className="fixed right-6 bottom-6 z-40 flex h-10 cursor-pointer items-center gap-2 rounded-full bg-primary pr-4 pl-3.5 text-[13.5px] font-medium text-primary-foreground shadow-lift transition-all duration-150 ease-out hover:-translate-y-0.5 hover:bg-primary/85 focus-visible:ring-3 focus-visible:ring-ring focus-visible:outline-none"
+      >
+        <Play className="size-4 fill-current" />
+        Present
+      </button>
+
+      {presenting ? (
+        <PresentationView slides={slides} onClose={handleExitPresent} />
+      ) : null}
     </div>
   );
 }

@@ -43,7 +43,7 @@ const plexMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Proposal Assistant",
+  title: "Purrposal: Proposal Assistant",
   description: "Turn a brief into a pitch-ready deck.",
 };
 

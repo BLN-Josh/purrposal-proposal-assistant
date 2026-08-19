@@ -249,7 +249,7 @@ export function LandingScreen() {
       <div className="relative flex min-h-full w-full flex-col items-center px-6 pt-7 pb-8">
         <header className="flex w-full max-w-180 animate-rise items-center justify-between">
           <span className="group font-display text-[15px] font-semibold tracking-tight text-foreground">
-            Balerion
+            Purrposal
             <span className="mt-0.5 block h-px w-0 bg-gradient-to-r from-brand-1 to-brand-5 transition-all duration-500 [transition-timing-function:var(--ease-smooth)] group-hover:w-full" />
           </span>
           <span className="flex items-center gap-3">
