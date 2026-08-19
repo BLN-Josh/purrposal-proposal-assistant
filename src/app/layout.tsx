@@ -1,7 +1,9 @@
+import { ClerkProvider } from "@clerk/nextjs";
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
+import { clerkAppearance } from "@/lib/clerk-appearance";
 import { QueryProvider } from "@/lib/query-provider";
 
 /**
@@ -52,12 +54,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${fraunces.variable} ${plexSans.variable} ${plexMono.variable} h-full antialiased`}
     >
       <body className="flex h-full flex-col overflow-hidden bg-background text-foreground">
-        <QueryProvider>{children}</QueryProvider>
-        <Toaster
-          position="bottom-right"
-          theme="light"
-          offset={{ bottom: "20px" }}
-        />
+        <ClerkProvider appearance={clerkAppearance}>
+          <QueryProvider>{children}</QueryProvider>
+          <Toaster
+            position="bottom-right"
+            theme="light"
+            offset={{ bottom: "20px" }}
+          />
+        </ClerkProvider>
       </body>
     </html>
   );

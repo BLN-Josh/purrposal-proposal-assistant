@@ -1,0 +1,10 @@
+export function MicrosoftIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 23 23" aria-hidden {...props}>
+      <rect x="0" y="0" width="11" height="11" fill="#F25022" />
+      <rect x="12" y="0" width="11" height="11" fill="#7FBA00" />
+      <rect x="0" y="12" width="11" height="11" fill="#00A4EF" />
+      <rect x="12" y="12" width="11" height="11" fill="#FFB900" />
+    </svg>
+  );
+}

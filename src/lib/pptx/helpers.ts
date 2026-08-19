@@ -132,7 +132,7 @@ export function titleBlock(
   slide.addText(
     [
       {
-        text: `${opts.sectionLabel.toUpperCase()}:`,
+        text: opts.sectionLabel.toUpperCase(),
         options: {
           color: accent,
           bold: true,
@@ -232,6 +232,9 @@ export function rowLabelStack(
     labelW: number;
     labelFill: string;
     labelSize?: number;
+    labelColor?: string;
+    /** Bullets rows are borderless; summary rows carry a hairline. */
+    contentLine?: boolean;
     contentFill?: string;
     contentSize?: number;
     gap?: number;
@@ -259,14 +262,14 @@ export function rowLabelStack(
         line: { color: opts.labelFill },
       });
       slide.addText(row.label, {
-        x: PAGE.marginX + 0.08,
+        x: PAGE.marginX + 0.12,
         y,
-        w: opts.labelW - 0.16,
+        w: opts.labelW - 0.24,
         h: rowH,
         fontSize: labelSize,
         bold: true,
-        color: textColorFor(opts.labelFill),
-        align: "center",
+        color: opts.labelColor ?? textColorFor(opts.labelFill),
+        align: "left",
         valign: "middle",
         fontFace: t.font,
       });
@@ -282,7 +285,10 @@ export function rowLabelStack(
       w: bodyW,
       h: rowH,
       fill: { color: opts.contentFill ?? t.white },
-      line: { color: t.border, width: STROKE.hairline },
+      line:
+        opts.contentLine === false
+          ? { color: opts.contentFill ?? t.white }
+          : { color: t.border, width: STROKE.hairline },
     });
 
     if (row.boxes?.length) {
@@ -350,61 +356,18 @@ export function rowLabelStack(
   });
 }
 
-/**
- * Spec §7.1 `chevronRibbon` — the highest-fanout primitive in the system
- * (VAL-01, EXE-01, EXE-02, EXE-03, EXE-04 all call it). Stages overlap by a
- * notch so the row reads as one continuous arrow. `homePlate` is the preset
- * geometry the source decks actually use for these (verified against their
- * OOXML), not `pentagon`.
- */
-export function chevronRibbon(
-  ctx: Ctx,
-  opts: {
-    stages: { label: string; fill: string }[];
-    x?: number;
-    y: number;
-    w?: number;
-    h?: number;
-    size?: number;
-  },
-) {
-  const { slide, pptx, t } = ctx;
-  const x0 = opts.x ?? PAGE.marginX;
-  const totalW = opts.w ?? PAGE.w - PAGE.marginX * 2;
-  const h = opts.h ?? 0.34;
-  const n = opts.stages.length;
-  const overlap = 0.12;
-  const stageW = (totalW + overlap * (n - 1)) / n;
-
-  opts.stages.forEach((stage, i) => {
-    const x = x0 + i * (stageW - overlap);
-    slide.addShape(pptx.ShapeType.homePlate, {
-      x,
-      y: opts.y,
-      w: stageW,
-      h,
-      fill: { color: stage.fill },
-      line: { color: stage.fill },
-    });
-    slide.addText(stage.label, {
-      x,
-      y: opts.y,
-      w: stageW - 0.16,
-      h,
-      fontSize: opts.size ?? TYPE.boxHeading.size,
-      bold: true,
-      color: textColorFor(stage.fill),
-      align: "center",
-      valign: "middle",
-      fontFace: t.font,
-    });
-  });
-}
-
 export interface BandedTableOpts {
   headers: string[];
   widths: number[];
-  rows: (string | { text: string; color?: string; bold?: boolean })[][];
+  rows: (
+    | string
+    | {
+        text: string;
+        color?: string;
+        bold?: boolean;
+        align?: "left" | "center" | "right";
+      }
+  )[][];
   x?: number;
   y: number;
   /**
@@ -415,8 +378,13 @@ export interface BandedTableOpts {
    */
   h: number;
   headerFill: string;
+  /** Overrides the contrast-derived header ink — the previews render an
+   * unfilled header in the accent colour rather than reversed-out on a band. */
+  headerColor?: string;
   /** Spec COM-01: one column carries a persistent tint down the whole table. */
   zebraColumn?: number;
+  /** Fill for `zebraColumn`. Defaults to the neutral wash. */
+  zebraFill?: string;
   /** Spec UND-06: horizontal rules only, no vertical grid. */
   horizontalOnly?: boolean;
   bodySize?: number;
@@ -456,7 +424,7 @@ export function bandedTable(ctx: Ctx, opts: BandedTableOpts): number {
     options: {
       fontSize: headerSize,
       bold: true,
-      color: textColorFor(opts.headerFill),
+      color: opts.headerColor ?? textColorFor(opts.headerFill),
       fill: { color: opts.headerFill },
       fontFace: t.font,
       valign: "middle",
@@ -468,15 +436,17 @@ export function bandedTable(ctx: Ctx, opts: BandedTableOpts): number {
     return row.map((cell, ci) => {
       const isObj = typeof cell !== "string";
       const fill =
-        override ?? (opts.zebraColumn === ci ? t.gray100 : undefined);
+        override ??
+        (opts.zebraColumn === ci ? (opts.zebraFill ?? t.gray100) : undefined);
       return {
         text: isObj ? cell.text : cell,
         options: {
           fontSize: bodySize,
-          color: (isObj && cell.color) || t.black,
+          color: (isObj && cell.color) || t.slideBody,
           bold: isObj ? cell.bold : false,
           fontFace: t.font,
           valign: "top",
+          ...(isObj && cell.align ? { align: cell.align } : {}),
           ...(fill ? { fill: { color: fill } } : {}),
         },
       };

@@ -67,6 +67,9 @@ function labelFor(
 interface AppState {
   screen: Screen;
   started: boolean;
+  /** Landing-page auth step, shown between the hero and the brief form for
+   * signed-out visitors. Signed-in visitors skip straight past it. */
+  authing: boolean;
   model: string;
   deckShape: DeckShapeId;
   depth: DepthId;
@@ -100,6 +103,7 @@ interface AppState {
   composerCue: number;
 
   start: () => void;
+  setAuthing: (authing: boolean) => void;
   setModel: (model: string) => void;
   setDeckShape: (deckShape: DeckShapeId) => void;
   setDepth: (depth: DepthId) => void;
@@ -127,6 +131,7 @@ interface AppState {
 export const useAppStore = create<AppState>((set, get) => ({
   screen: "landing",
   started: false,
+  authing: false,
   model: DEFAULT_GENERATE_MODEL,
   deckShape: DEFAULT_DECK_SHAPE,
   depth: DEFAULT_DEPTH,
@@ -154,7 +159,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   exporting: null,
   composerCue: 0,
 
-  start: () => set({ started: true }),
+  start: () => set({ started: true, authing: false }),
+  setAuthing: (authing) => set({ authing }),
   setModel: (model) => set({ model }),
   setDeckShape: (deckShape) => set({ deckShape }),
   setDepth: (depth) => set({ depth }),
@@ -245,6 +251,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({
       screen: "landing",
       started: false,
+      authing: false,
       model: DEFAULT_GENERATE_MODEL,
       deckId: null,
       deckTitle: "",
