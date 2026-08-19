@@ -1,16 +1,28 @@
 "use client";
 
-import { Fragment, useRef, useState, type CSSProperties } from "react";
 import {
+  Fragment,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
+import {
+  ArrowLeft,
   ArrowRight,
   Check,
   ChevronDownIcon,
   FileCheck2,
   FileUp,
   LayoutTemplate,
+  Loader2,
+  Lock,
   PenLine,
+  ShieldCheck,
   Upload,
 } from "lucide-react";
+import { Show, UserButton, useSignIn, useUser } from "@clerk/nextjs";
+import { toast } from "sonner";
 import { useAppStore } from "@/store/app-store";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -19,6 +31,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AmbientBackdrop } from "@/components/ambient-backdrop";
 import { MiniSlide, type MiniSlideSpec } from "@/components/mini-slide";
+import { MicrosoftIcon } from "@/components/oauth-icons";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -99,9 +112,15 @@ const ROW_B = [...ROW_B_BASE, ...ROW_B_BASE];
 export function LandingScreen() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [leaving, setLeaving] = useState(false);
+  const [oauthLoading, setOauthLoading] = useState(false);
+
+  const { isSignedIn } = useUser();
+  const { signIn } = useSignIn();
 
   const started = useAppStore((s) => s.started);
   const start = useAppStore((s) => s.start);
+  const authing = useAppStore((s) => s.authing);
+  const setAuthing = useAppStore((s) => s.setAuthing);
   const brief = useAppStore((s) => s.brief);
   const setBrief = useAppStore((s) => s.setBrief);
   const fileName = useAppStore((s) => s.fileName);
@@ -134,13 +153,93 @@ export function LandingScreen() {
   /** Progress toward the 20-character minimum, for the meter. */
   const briefProgress = Math.min(1, chars / 20);
 
+  /** hero → (signed out) auth → form, or hero → (signed in) form directly. */
+  const phase: "hero" | "auth" | "form" = started
+    ? "form"
+    : authing
+      ? "auth"
+      : "hero";
+
+  // A returning OAuth redirect lands back on "/?authed=1" — drop straight
+  // into the form instead of making an already-signed-in visitor click
+  // Start twice.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("authed") !== "1") return;
+    window.history.replaceState(null, "", window.location.pathname);
+    start();
+  }, [start]);
+
   function handleStart() {
     if (leaving) return;
     setLeaving(true);
     setTimeout(() => {
-      start();
+      if (isSignedIn) start();
+      else setAuthing(true);
       setLeaving(false);
     }, START_FADE_MS);
+  }
+
+  /**
+   * Start the Microsoft redirect flow.
+   *
+   * `useSignIn()` is *typed* as Clerk's future resource, whose `sso()` takes
+   * `redirectCallbackUrl` — but under a plain `<ClerkProvider>` the object
+   * handed back at runtime is still the classic resource, which only has
+   * `authenticateWithRedirect`. Calling `sso()` therefore threw
+   * "not a function" before any network request, and with no catch the
+   * rejection went unhandled and left this button spinning forever.
+   *
+   * So: use whichever the running SDK actually provides. Both take the same
+   * two URLs, only under different names — the callback route must be the one
+   * rendering `AuthenticateWithRedirectCallback`, or the handshake never
+   * completes and the user lands back signed out.
+   */
+  async function handleMicrosoftSignIn() {
+    if (!signIn || oauthLoading) return;
+    setOauthLoading(true);
+
+    const CALLBACK_URL = "/sso-callback";
+    const COMPLETE_URL = "/?authed=1";
+
+    const resource = signIn as unknown as {
+      sso?: (p: {
+        strategy: string;
+        redirectUrl: string;
+        redirectCallbackUrl: string;
+      }) => Promise<{ error?: { message: string; longMessage?: string } }>;
+      authenticateWithRedirect?: (p: {
+        strategy: string;
+        redirectUrl: string;
+        redirectUrlComplete: string;
+      }) => Promise<unknown>;
+    };
+
+    try {
+      if (typeof resource.sso === "function") {
+        const { error } = await resource.sso({
+          strategy: "oauth_microsoft",
+          redirectUrl: COMPLETE_URL,
+          redirectCallbackUrl: CALLBACK_URL,
+        });
+        if (error) throw new Error(error.longMessage ?? error.message);
+      } else if (typeof resource.authenticateWithRedirect === "function") {
+        await resource.authenticateWithRedirect({
+          strategy: "oauth_microsoft",
+          redirectUrl: CALLBACK_URL,
+          redirectUrlComplete: COMPLETE_URL,
+        });
+      } else {
+        throw new Error("This build of Clerk exposes no redirect sign-in.");
+      }
+    } catch (err) {
+      setOauthLoading(false);
+      toast.error("Couldn't start sign-in", {
+        description:
+          err instanceof Error ? err.message : "Try again in a moment.",
+      });
+    }
   }
 
   return (
@@ -153,19 +252,24 @@ export function LandingScreen() {
             Balerion
             <span className="mt-0.5 block h-px w-0 bg-gradient-to-r from-brand-1 to-brand-5 transition-all duration-500 [transition-timing-function:var(--ease-smooth)] group-hover:w-full" />
           </span>
-          <span className="flex items-center gap-2 rounded-full bg-card/70 px-3 py-1.5 font-mono text-[11px] tracking-[0.02em] text-detail ring-1 ring-foreground/8 backdrop-blur-sm">
-            <span className="relative flex size-1.5">
-              <span className="absolute inset-0 animate-halo rounded-full bg-brand-4" />
-              <span className="relative size-1.5 rounded-full bg-brand-4" />
+          <span className="flex items-center gap-3">
+            <span className="flex items-center gap-2 rounded-full bg-card/70 px-3 py-1.5 font-mono text-[11px] tracking-[0.02em] text-detail ring-1 ring-foreground/8 backdrop-blur-sm">
+              <span className="relative flex size-1.5">
+                <span className="absolute inset-0 animate-halo rounded-full bg-brand-4" />
+                <span className="relative size-1.5 rounded-full bg-brand-4" />
+              </span>
+              nothing leaves this browser
             </span>
-            nothing leaves this browser
+            <Show when="signed-in">
+              <UserButton />
+            </Show>
           </span>
         </header>
 
         <main
           className={cn(
             "flex w-full max-w-180 flex-1 flex-col items-center text-center",
-            started ? "justify-start pt-8" : "justify-center pt-2",
+            phase !== "hero" ? "justify-start pt-8" : "justify-center pt-2",
           )}
         >
           <span
@@ -178,7 +282,7 @@ export function LandingScreen() {
           <h1
             className={cn(
               "font-display font-semibold text-foreground transition-all duration-700 [transition-timing-function:var(--ease-smooth)]",
-              started
+              phase !== "hero"
                 ? "mt-3 text-[32px] leading-[1.05]"
                 : "mt-5 text-[clamp(34px,6.2vw,58px)] leading-[1.04] tracking-[-0.02em]",
             )}
@@ -233,7 +337,7 @@ export function LandingScreen() {
             </span>
           </div>
 
-          {!started ? (
+          {phase === "hero" ? (
             <div
               className={cn(
                 "flex w-full flex-col items-center transition-opacity duration-250 ease-out",
@@ -297,7 +401,7 @@ export function LandingScreen() {
                 ))}
               </ol>
             </div>
-          ) : (
+          ) : phase === "form" ? (
             <div className="mt-5 flex items-center gap-2.5 font-mono text-[11.5px] text-detail">
               <span key={slideCount} className="animate-rise">
                 {String(slideCount).padStart(2, "0")} slides
@@ -307,9 +411,77 @@ export function LandingScreen() {
                 {String(readMinutes).padStart(2, "0")} min read
               </span>
             </div>
-          )}
+          ) : null}
 
-          {started ? (
+          {phase === "auth" ? (
+            <div className="mt-9 flex w-full max-w-100 flex-col gap-4 pb-4">
+              <Card
+                className="animate-rise shadow-soft-lg ring-foreground/8"
+                style={delay(40)}
+              >
+                <CardContent className="flex flex-col items-center gap-5 py-1 text-center">
+                  <span className="animate-rise font-mono text-[10.5px] tracking-[0.09em] text-detail uppercase">
+                    <span className="text-foreground/45">01</span> · Sign in to
+                    continue
+                  </span>
+
+                  {/* Same medallion treatment as the three hero steps, so the
+                      auth step reads as part of the same sequence. */}
+                  <span
+                    className="relative flex size-11 animate-rise items-center justify-center rounded-full bg-highlight/60 text-foreground ring-1 ring-foreground/8"
+                    style={delay(120)}
+                  >
+                    <ShieldCheck className="size-5" strokeWidth={1.7} />
+                  </span>
+
+                  <span
+                    className="flex animate-rise flex-col gap-1.5"
+                    style={delay(180)}
+                  >
+                    <span className="font-display text-[19px] leading-snug font-semibold tracking-tight text-foreground">
+                      Sign in to continue
+                    </span>
+                    <span className="text-wrap-pretty text-[13.5px] leading-normal text-detail">
+                      One click with your Balerion Microsoft account
+                    </span>
+                  </span>
+
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    className="h-11 w-full animate-rise gap-2.5 text-[14px] shadow-soft transition-colors hover:bg-highlight/50"
+                    style={delay(240)}
+                    disabled={oauthLoading}
+                    onClick={handleMicrosoftSignIn}
+                  >
+                    {oauthLoading ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <MicrosoftIcon className="size-4" />
+                    )}
+                    {oauthLoading ? "Redirecting…" : "Continue with Microsoft"}
+                  </Button>
+                  <span
+                    className="flex animate-rise items-center gap-1.5 font-mono text-[11px] text-detail"
+                    style={delay(300)}
+                  >
+                    <Lock className="size-3" strokeWidth={2} />
+                    Available only within Balerion`s organization
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => setAuthing(false)}
+                    className="group flex animate-rise items-center gap-1.5 font-mono text-[11.5px] text-detail transition-colors hover:text-foreground"
+                    style={delay(350)}
+                  >
+                    <ArrowLeft className="size-3 transition-transform duration-300 [transition-timing-function:var(--ease-smooth)] group-hover:-translate-x-0.5" />
+                    Back
+                  </button>
+                </CardContent>
+              </Card>
+            </div>
+          ) : phase === "form" ? (
             <div className="mt-9 flex w-full flex-col gap-6 pb-4 text-left">
               <Card
                 className="animate-rise shadow-soft-lg ring-foreground/8 transition-shadow duration-500 [transition-timing-function:var(--ease-smooth)] hover:shadow-lift"
@@ -649,7 +821,7 @@ export function LandingScreen() {
           ) : null}
         </main>
 
-        {!started ? (
+        {phase === "hero" ? (
           /* Outside <main> so the hero centres above it. Hovering pauses
              both tracks. */
           <div

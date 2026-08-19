@@ -12,6 +12,7 @@ import {
   Plus,
   X,
 } from "lucide-react";
+import { Show, UserButton } from "@clerk/nextjs";
 import { useAppStore, labelFor } from "@/store/app-store";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -157,6 +158,9 @@ export function WorkspaceScreen() {
           <Button variant="outline" size="sm" onClick={reset}>
             Start over
           </Button>
+          <Show when="signed-in">
+            <UserButton />
+          </Show>
         </div>
       </div>
 
